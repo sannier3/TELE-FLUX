@@ -27,6 +27,7 @@ export type NodeType =
   | 'mobile_external'           // mobile ou numéro externe
   | 'switchboard'               // standard
   | 'greeting'                  // accueil téléphonique
+  | 'hangup'                    // fin d'appel / raccrocher
   | 'emergency_overflow';       // scénario d’urgence ou débordement
 
 export interface CallNode {
@@ -111,7 +112,9 @@ export interface DirectoryUser {
   internalNumber: string;
   sdaId: string; // Associated SDA Number
   stationType: 'IP' | 'DECT' | 'Softphone' | 'Analogique';
+  phoneBrand?: string;
   phoneModel: string;
+  phoneModelCustom?: string;
   voicemailEnabled: boolean;
   forwardEnabled: boolean;
   forwardDestination: string;

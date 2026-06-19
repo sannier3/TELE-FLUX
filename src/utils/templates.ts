@@ -321,6 +321,15 @@ export const NODE_METADATA: Record<NodeType, {
     bgSelected: 'bg-red-50',
     iconName: 'shield-alert',
     defaultProps: { emergencyActive: false, description: 'Aiguillage d\'urgence en cas de pannes ou surcapacité' }
+  },
+  hangup: {
+    label: "Fin d'appel (Raccrocher)",
+    category: 'routing',
+    color: 'stone',
+    borderColor: 'border-stone-500',
+    bgSelected: 'bg-stone-50',
+    iconName: 'phone-off',
+    defaultProps: { description: 'Raccroché automatique de l’appel / Libération du canal de communication' }
   }
 };
 

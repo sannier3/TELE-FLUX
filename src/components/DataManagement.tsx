@@ -20,6 +20,14 @@ import {
 import { TelecomProject, PhoneLine, DirectoryUser, ReusableTemplate, NodeType } from '../types';
 import { PHONE_MODELS, PROVIDERS } from '../utils/templates';
 import { 
+  BRANDS, 
+  YEALINK_MODELS, 
+  POLY_MODELS, 
+  GIGASET_MODELS, 
+  ALE_MODELS, 
+  OTHER_MODELS 
+} from '../data/phoneModels';
+import { 
   exportUsersToCSV, 
   exportLinesToCSV, 
   exportSDAsToCSV, 
@@ -49,6 +57,21 @@ export default function DataManagement({
   
   // CSV Import state message
   const [csvFeedback, setCsvFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
+
+  // Dynamic suggestions from active design diagram scheme
+  const nodesWithInternal = (project.nodes || []).filter(n => n.properties && n.properties.internalNumber);
+
+  const sdaSuggestions = Array.from(new Set(
+    (project.nodes || [])
+      .map(n => {
+        if (!n.properties) return '';
+        if (n.type === 'ndi' || n.type === 'incoming_num') {
+          return n.properties.number;
+        }
+        return n.properties.associatedSda;
+      })
+      .filter((num): num is string => !!num && num.trim() !== '')
+  ));
 
   // File Inputs references
   const linesFileRef = useRef<HTMLInputElement>(null);
@@ -297,6 +320,179 @@ export default function DataManagement({
               </div>
             </div>
 
+            {/* 1. Sync from Scheme Panel */}
+            {nodesWithInternal.length > 0 && (
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3 animate-fade-in shadow-xs">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+                  <div>
+                    <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                      <Layers size={14} className="text-blue-600 animate-pulse" />
+                      Raccordement et Synchro avec la conception graphique ({nodesWithInternal.length} détectés)
+                    </h4>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Les éléments dessinés dans votre schéma de routage (postes, répondeurs, serveurs) possèdent des numéros internes que vous pouvez importer ou synchroniser directement dans l'annuaire.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newUsers = [...project.users];
+                      let count = 0;
+                      nodesWithInternal.forEach(node => {
+                        const exists = newUsers.some(u => 
+                          u.internalNumber === node.properties.internalNumber || 
+                          u.name.toLowerCase() === node.name.toLowerCase()
+                        );
+                        if (!exists) {
+                          const mappedType = node.type === 'user_station' 
+                            ? (node.properties.phoneType === 'Softphone' ? 'Softphone' : node.properties.phoneType === 'DECT' ? 'DECT' : 'IP')
+                            : 'Analogique';
+                          newUsers.push({
+                            id: `u-sync-${node.id}`,
+                            name: node.name,
+                            email: '',
+                            internalNumber: node.properties.internalNumber || '',
+                            sdaId: node.properties.associatedSda || '',
+                            stationType: mappedType as any,
+                            phoneBrand: node.properties.phoneBrand || 'Yealink',
+                            phoneModel: node.properties.phoneModel || '',
+                            phoneModelCustom: node.properties.phoneModelCustom || '',
+                            voicemailEnabled: node.type === 'voicemail' || !!(node.properties as any).voicemailEnabled,
+                            forwardEnabled: false,
+                            forwardDestination: '',
+                            comment: `Recopié de la conception (${node.type})`
+                          });
+                          count++;
+                        }
+                      });
+                      if (count > 0) {
+                        onUpdateUsers(newUsers);
+                        alert(`${count} poste(s) importé(s) !`);
+                      } else {
+                        alert("Tous les éléments du schéma de conception sont déjà enregistrés dans votre annuaire !");
+                      }
+                    }}
+                    className="text-[10px] bg-blue-600 text-white font-extrabold px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-all cursor-pointer whitespace-nowrap shadow-xs uppercase tracking-wide shrink-0"
+                  >
+                    Tout importer à l'annuaire
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 max-h-48 overflow-y-auto pr-1">
+                  {nodesWithInternal.map(node => {
+                    const matchedUser = project.users.find(u => 
+                      u.internalNumber === node.properties.internalNumber ||
+                      u.name.toLowerCase() === node.name.toLowerCase()
+                    );
+
+                    const hasDiff = matchedUser && (
+                      matchedUser.name !== node.name ||
+                      matchedUser.internalNumber !== (node.properties.internalNumber || '') ||
+                      matchedUser.phoneBrand !== node.properties.phoneBrand ||
+                      matchedUser.phoneModel !== node.properties.phoneModel ||
+                      matchedUser.phoneModelCustom !== node.properties.phoneModelCustom ||
+                      matchedUser.sdaId !== (node.properties.associatedSda || '') ||
+                      matchedUser.voicemailEnabled !== (node.type === 'voicemail' || !!(node.properties as any).voicemailEnabled)
+                    );
+
+                    // Map brand and models for displaying
+                    const brand = node.properties.phoneBrand || '';
+                    const model = node.properties.phoneModel === 'custom_input' ? node.properties.phoneModelCustom : node.properties.phoneModel;
+                    const fullModel = brand ? `${brand} ${model || ''}`.trim() : '';
+
+                    return (
+                      <div key={node.id} className="p-2 border rounded-lg bg-white border-slate-200 hover:border-blue-300 transition-colors flex items-center justify-between text-xs gap-2">
+                        <div className="space-y-0.5 truncate flex-1">
+                          <div className="font-bold text-slate-800 flex items-center gap-1.5 truncate">
+                            <span className="truncate">{node.name}</span>
+                            <span className="text-[10px] bg-blue-50 text-blue-700 px-1 py-0.2 rounded font-mono font-bold border border-blue-105 shrink-0">
+                              {node.properties.internalNumber}
+                            </span>
+                          </div>
+                          <div className="text-[10px] text-slate-500 flex items-center gap-1 justify-between">
+                            <span>Secteur: <b className="font-extrabold text-slate-600 uppercase">{node.type}</b></span>
+                            {fullModel && <span className="bg-slate-100 text-slate-700 px-1 rounded text-[9px] truncate max-w-[80px]">{fullModel}</span>}
+                          </div>
+                          {node.properties.associatedSda && (
+                            <div className="text-[9px] font-mono text-cyan-800 bg-cyan-50/50 border border-cyan-100 px-1 py-0.2 rounded inline-block">
+                              SDA: {node.properties.associatedSda}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="shrink-0">
+                          {matchedUser ? (
+                            hasDiff ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const mappedType = node.type === 'user_station' 
+                                    ? (node.properties.phoneType === 'Softphone' ? 'Softphone' : node.properties.phoneType === 'DECT' ? 'DECT' : 'IP')
+                                    : 'Analogique';
+                                  handleUpdateUser(matchedUser.id, {
+                                    name: node.name,
+                                    internalNumber: node.properties.internalNumber || '',
+                                    sdaId: node.properties.associatedSda || '',
+                                    stationType: mappedType as any,
+                                    phoneBrand: node.properties.phoneBrand || 'Yealink',
+                                    phoneModel: node.properties.phoneModel || '',
+                                    phoneModelCustom: node.properties.phoneModelCustom || '',
+                                    voicemailEnabled: node.type === 'voicemail' || !!(node.properties as any).voicemailEnabled,
+                                  });
+                                }}
+                                className="bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 font-extrabold px-2 py-1 rounded text-[9px] cursor-pointer transition-colors"
+                                title="Aligner l'annuaire avec ce que vous avez dessiné dans le schéma"
+                              >
+                                Align
+                              </button>
+                            ) : (
+                              <span className="text-[9px] text-emerald-600 bg-emerald-50 border border-emerald-100 font-black px-1.5 py-0.5 rounded flex items-center gap-0.5 select-none">
+                                ✓ Relié
+                              </span>
+                            )
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const mappedType = node.type === 'user_station' 
+                                  ? (node.properties.phoneType === 'Softphone' ? 'Softphone' : node.properties.phoneType === 'DECT' ? 'DECT' : 'IP')
+                                  : 'Analogique';
+                                onUpdateUsers([...project.users, {
+                                  id: `u-sync-${node.id}`,
+                                  name: node.name,
+                                  email: '',
+                                  internalNumber: node.properties.internalNumber || '',
+                                  sdaId: node.properties.associatedSda || '',
+                                  stationType: mappedType as any,
+                                  phoneBrand: node.properties.phoneBrand || 'Yealink',
+                                  phoneModel: node.properties.phoneModel || '',
+                                  phoneModelCustom: node.properties.phoneModelCustom || '',
+                                  voicemailEnabled: node.type === 'voicemail' || !!(node.properties as any).voicemailEnabled,
+                                  forwardEnabled: false,
+                                  forwardDestination: '',
+                                  comment: `Synchronisé du schéma (${node.type})`
+                                }]);
+                              }}
+                              className="bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 font-extrabold px-2 py-1 rounded text-[9px] cursor-pointer transition-all active:scale-95"
+                            >
+                              + Relier
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Datalist suggestion with SDAs from design schema */}
+            <datalist id="sda-suggestions-list">
+              {sdaSuggestions.map((num, i) => (
+                <option key={i} value={num} />
+              ))}
+            </datalist>
+
             {/* Main Users Spreadsheet Grid */}
             <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
               <div className="overflow-x-auto">
@@ -355,13 +551,15 @@ export default function DataManagement({
                               onChange={(e) => handleUpdateUser(u.id, { sdaId: e.target.value })}
                               className="bg-transparent hover:bg-slate-100/50 focus:bg-white focus:ring-1 focus:ring-blue-400 rounded px-1.5 py-1 w-full border-none text-slate-700 font-mono"
                               placeholder="ex: 0140203001"
+                              list="sda-suggestions-list"
+                              title="Double-cliquez pour voir les numéros NDI/SDA du schéma"
                             />
                           </td>
                           <td className="p-2.5">
                             <select
                               value={u.stationType}
                               onChange={(e) => handleUpdateUser(u.id, { stationType: e.target.value as any })}
-                              className="bg-slate-50 border border-slate-200 rounded px-1.5 py-1 w-full text-slate-700"
+                              className="bg-slate-50 border border-slate-200 rounded px-1.5 py-1 w-full text-slate-700 font-medium"
                             >
                               <option value="IP">IP Fixe</option>
                               <option value="DECT">Sans fil DECT</option>
@@ -370,15 +568,64 @@ export default function DataManagement({
                             </select>
                           </td>
                           <td className="p-2.5">
-                            <select
-                              value={u.phoneModel}
-                              onChange={(e) => handleUpdateUser(u.id, { phoneModel: e.target.value })}
-                              className="bg-slate-50 border border-slate-200 rounded px-1.5 py-1 w-full text-slate-700"
-                            >
-                              {PHONE_MODELS.map((m, i) => (
-                                <option key={i} value={m}>{m}</option>
-                              ))}
-                            </select>
+                            <div className="space-y-1 min-w-[155px]">
+                              {/* Brand Selector */}
+                              <select
+                                value={u.phoneBrand || ''}
+                                onChange={(e) => {
+                                  const b = e.target.value;
+                                  handleUpdateUser(u.id, { phoneBrand: b, phoneModel: '' });
+                                }}
+                                className="bg-slate-50 border border-slate-200 rounded px-1 py-0.5 w-full text-[10px] text-slate-700 font-bold"
+                              >
+                                <option value="">-- Marque --</option>
+                                {BRANDS.map(b => (
+                                  <option key={b} value={b}>{b}</option>
+                                ))}
+                              </select>
+
+                              {/* Model Selector depending on brand */}
+                              {u.phoneBrand ? (
+                                <select
+                                  value={u.phoneModel || ''}
+                                  onChange={(e) => handleUpdateUser(u.id, { phoneModel: e.target.value })}
+                                  className="bg-slate-50 border border-slate-200 rounded px-1 py-0.5 w-full text-[10px] text-slate-700"
+                                >
+                                  <option value="">-- Modèle --</option>
+                                  {(u.phoneBrand === 'Yealink' ? YEALINK_MODELS : 
+                                    u.phoneBrand === 'Poly' || u.phoneBrand === 'Polycom' ? POLY_MODELS : 
+                                    u.phoneBrand === 'Gigaset' ? GIGASET_MODELS : 
+                                    u.phoneBrand === 'Alcatel-Lucent Enterprise' ? ALE_MODELS : 
+                                    OTHER_MODELS[u.phoneBrand || ''] || []).map(m => (
+                                      <option key={m} value={m}>{m}</option>
+                                  ))}
+                                  <option value="custom_input">Autre (Saisie libre)...</option>
+                                </select>
+                              ) : (
+                                <input
+                                  type="text"
+                                  placeholder="Modèle direct..."
+                                  value={u.phoneModel || ''}
+                                  onChange={(e) => handleUpdateUser(u.id, { phoneModel: e.target.value })}
+                                  className="bg-transparent hover:bg-slate-100/50 focus:bg-white focus:ring-1 focus:ring-blue-400 rounded px-1 py-0.5 w-full border border-slate-200 text-[10px] text-slate-700"
+                                />
+                              )}
+
+                              {/* Custom Model Text Input */}
+                              {(u.phoneModel === 'custom_input' || (u.phoneBrand && !((u.phoneBrand === 'Yealink' ? YEALINK_MODELS : 
+                                u.phoneBrand === 'Poly' || u.phoneBrand === 'Polycom' ? POLY_MODELS : 
+                                u.phoneBrand === 'Gigaset' ? GIGASET_MODELS : 
+                                u.phoneBrand === 'Alcatel-Lucent Enterprise' ? ALE_MODELS : 
+                                OTHER_MODELS[u.phoneBrand || ''] || []).includes(u.phoneModel || '')))) && (
+                                <input
+                                  type="text"
+                                  placeholder="Saisir modèle..."
+                                  value={u.phoneModelCustom || ''}
+                                  onChange={(e) => handleUpdateUser(u.id, { phoneModelCustom: e.target.value })}
+                                  className="bg-white border border-slate-300 rounded px-1 py-0.5 w-full text-[10px] text-slate-800 font-semibold"
+                                />
+                              )}
+                            </div>
                           </td>
                           <td className="p-2.5 text-center">
                             <input

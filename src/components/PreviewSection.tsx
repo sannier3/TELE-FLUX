@@ -23,7 +23,8 @@ import {
   ClipboardCheck,
   ShieldCheck,
   Download,
-  Image
+  Image,
+  PhoneOff
 } from 'lucide-react';
 import { TelecomProject, CallNode, Connection } from '../types';
 import { NODE_METADATA } from '../utils/templates';
@@ -547,26 +548,89 @@ function FlowchartReadonlyVisual({ project, showDownload = false }: { project: T
             let detailLine1 = '';
             let detailLine2 = '';
 
-            if (node.properties.number) {
-              detailLine1 = `Nº: ${node.properties.number}`;
-            } else if (node.properties.userName) {
-              detailLine1 = `Utilisateur: ${node.properties.userName}`;
-            } else if (node.properties.timeSchedule) {
-              detailLine1 = `Plage: ${node.properties.timeSchedule.split(',')[0]}`;
-            } else if (node.properties.audioMessageName) {
-              detailLine1 = `Message: ${node.properties.audioMessageName.substring(0, 16)}`;
-            } else if (node.properties.forwardDestination) {
-              detailLine1 = `👈 Renvoi: ${node.properties.forwardDestination}`;
+            const getPhoneModelStr = (props: any) => {
+              if (!props.phoneBrand) return '';
+              const model = props.phoneModel;
+              const modelCustom = props.phoneModelCustom;
+              const modelStr = (!model || model === 'custom_input') ? (modelCustom || '') : model;
+              return `${props.phoneBrand} ${modelStr}`.trim();
+            };
+
+            // Type-specific detailed data formatting for Schema view boxes
+            switch (node.type) {
+              case 'ndi':
+                detailLine1 = `Nº: ${node.properties.number || '0xxx'}`;
+                detailLine2 = node.properties.targetPlatform ? `SDA DST: ${node.properties.targetPlatform}` : '';
+                break;
+              case 'user_station': {
+                detailLine1 = `Numéro: ${node.properties.internalNumber || ''}`;
+                if (node.properties.userName && node.properties.userName !== "Nom Utilisateur" && node.properties.userName !== node.name) {
+                  detailLine1 += ` (${node.properties.userName})`;
+                }
+                const modelStr = getPhoneModelStr(node.properties);
+                if (modelStr) {
+                  detailLine2 = `Poste: ${modelStr}`;
+                } else if (node.properties.phoneType) {
+                  detailLine2 = `Type: ${node.properties.phoneType}`;
+                }
+                break;
+              }
+              case 'call_group':
+                detailLine1 = `Group Ext: ${node.properties.internalNumber || 'Simultané'}`;
+                if (node.properties.delayBeforeForward) {
+                  detailLine2 = `Délai: ${node.properties.delayBeforeForward}s`;
+                } else {
+                  detailLine2 = node.properties.description || '';
+                }
+                break;
+              case 'voicemail':
+                detailLine1 = `Messagerie: ${node.properties.internalNumber || ''}`;
+                detailLine2 = `Fichier: ${node.properties.audioMessageName || 'standard.wav'}`;
+                break;
+              case 'ivr':
+                detailLine1 = `Menu IVR: ${node.properties.internalNumber || ''}`;
+                detailLine2 = `Fichier: ${node.properties.audioMessageName || 'choix.wav'}`;
+                break;
+              case 'time_range':
+                detailLine1 = `Plage: ${node.properties.timeSchedule || 'Horaires'}`;
+                detailLine2 = (node.properties as any).timezone ? `Fuseau: ${(node.properties as any).timezone}` : '';
+                break;
+              case 'custom_audio':
+                detailLine1 = `Audio: ${node.properties.audioMessageName || ''}`;
+                detailLine2 = node.properties.description || '';
+                break;
+              case 'emergency_overflow':
+                detailLine1 = `Urgence: ${node.properties.emergencyActive ? '🔴 ACTIF' : '🟢 Inactif'}`;
+                detailLine2 = node.properties.forwardDestination ? `Vers: ${node.properties.forwardDestination}` : 'Sécurisation';
+                break;
+              case 'incoming_num':
+                detailLine1 = `Entrant: ${node.properties.number || 'Toutes SDA'}`;
+                detailLine2 = node.properties.description || '';
+                break;
+              case 'outgoing_num':
+                detailLine1 = `Sortant: ${node.properties.number || 'Présentation'}`;
+                detailLine2 = node.properties.description || '';
+                break;
+              case 'hangup':
+                detailLine1 = `Fin d'appel`;
+                detailLine2 = `Raccroché immédiat`;
+                break;
+              default:
+                if (node.properties.number) {
+                  detailLine1 = `Nº: ${node.properties.number}`;
+                } else if (node.properties.internalNumber) {
+                  detailLine1 = `Ext: ${node.properties.internalNumber}`;
+                } else if (node.properties.userName) {
+                  detailLine1 = `Utilisateur: ${node.properties.userName}`;
+                }
+                break;
             }
 
-            if (detailLevel === 'client') {
-              if (node.properties.phoneModel) {
-                detailLine2 = `Poste: ${node.properties.phoneBrand || ''} ${node.properties.phoneModel}`;
-              } else if (node.properties.associatedSda) {
+            // Fallback for detailLine2 if still empty and we have custom configuration info
+            if (!detailLine2) {
+              if (node.properties.associatedSda) {
                 detailLine2 = `SDA Directe: ${node.properties.associatedSda}`;
-              } else if (node.properties.delayBeforeForward) {
-                detailLine2 = `Délai de sonnerie: ${node.properties.delayBeforeForward}s`;
-              } else if (node.properties.techComment || node.properties.clientComment) {
+              } else if (node.properties.clientComment || node.properties.techComment) {
                 detailLine2 = node.properties.clientComment || node.properties.techComment || '';
               }
             }
@@ -875,6 +939,12 @@ export default function PreviewSection({ project, validationAlerts }: PreviewSec
     
     let logMsg = `➔ Aiguillage [${labelUsed}] : Direction le bloc "${targetNode.name}"`;
     
+    if (labelUsed.toLowerCase().includes('externe')) {
+      logMsg += ` (Désigné spécifiquement pour numéros Externes)`;
+    } else if (labelUsed.toLowerCase().includes('interne')) {
+      logMsg += ` (Désigné spécifiquement pour appels Internes)`;
+    }
+    
     // Append specific functional simulation messages
     if (targetNode.type === 'user_station') {
       logMsg += ` ⇨ Le poste de ${targetNode.properties.userName || 'l\'agent'} (Interne ${targetNode.properties.internalNumber}) se met à sonner...`;
@@ -886,6 +956,8 @@ export default function PreviewSection({ project, validationAlerts }: PreviewSec
       logMsg += ` ⇨ Vérification des plages horaires d'ouverture : ${targetNode.properties.timeSchedule || '8h30-18h'}.`;
     } else if (targetNode.type.startsWith('forward_')) {
       logMsg += ` ⇨ Renvoi d'appel automatique activé vers : ${targetNode.properties.forwardDestination || 'destination'}.`;
+    } else if (targetNode.type === 'hangup') {
+      logMsg += ` ⇨ 🛑 Appel raccroché de façon automatique / Fin d'appel planifiée.`;
     }
 
     setSimLogs(prev => [...prev, logMsg]);
@@ -1587,9 +1659,10 @@ export default function PreviewSection({ project, validationAlerts }: PreviewSec
 
                   <button
                     onClick={resetSimulation}
-                    className="mt-6 w-full bg-slate-900 hover:bg-slate-800 text-teal-400 font-bold py-2 rounded-lg text-xs cursor-pointer text-center"
+                    className="mt-6 w-full bg-red-600 hover:bg-red-700 active:scale-98 text-white font-extrabold py-2.5 rounded-lg text-xs cursor-pointer text-center flex items-center justify-center gap-2 shadow-md transition-all uppercase tracking-wide"
                   >
-                    Raccrocher et réinitialiser
+                    <PhoneOff size={13} />
+                    <span>Raccrocher / Fin d'appel</span>
                   </button>
                 </div>
 

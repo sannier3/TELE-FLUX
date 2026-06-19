@@ -484,6 +484,10 @@ export default function Workspace({
   // Connection flow labels options
   const CONNECTION_LABEL_PRESETS = [
     'appel entrant',
+    'appel entrant (externe)',
+    'appel entrant (interne)',
+    'appel interne',
+    'appel externe',
     'si occupé',
     'si non-réponse',
     'hors horaires',
@@ -506,7 +510,8 @@ export default function Workspace({
     'urgence / secours',
     'fermeture exceptionnelle',
     'renvoi sur non-réponse',
-    'renvoi sur indisponibilité'
+    'renvoi sur indisponibilité',
+    "fin d'appel / raccroché"
   ];
 
   return (

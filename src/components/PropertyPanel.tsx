@@ -622,10 +622,25 @@ export default function PropertyPanel({
               </div>
             </div>
 
+            {/* Group/Queue Internal Number */}
+            {(node.type === 'queue' || node.type === 'call_group') && (
+              <div className="space-y-1 mb-2">
+                <label className="text-[10px] text-slate-500 block font-bold uppercase">N° de Groupement / File (Interne)</label>
+                <input
+                  id="prop-node-group-internal-num"
+                  type="text"
+                  value={localProps.internalNumber || ''}
+                  onChange={(e) => handlePropertyChange('internalNumber', e.target.value)}
+                  placeholder="ex: 550, 551..."
+                  className="w-full border border-white/40 rounded px-2 py-1 focus:outline-none bg-white/50 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-850 font-mono text-xs font-semibold"
+                />
+              </div>
+            )}
+
             {/* Delay in seconds before forwarding */}
             {(node.type === 'forward_no_answer' || node.type === 'queue' || node.type === 'call_group') && (
               <div className="space-y-1">
-                <label className="text-[10px] text-slate-500 block">DÉLAI AVANT RENVOI / TIMEOUT (s)</label>
+                <label className="text-[10px] text-slate-500 block font-bold uppercase">DÉLAI AVANT RENVOI / TIMEOUT (s)</label>
                 <input
                   id="prop-node-delay"
                   type="number"
@@ -633,7 +648,7 @@ export default function PropertyPanel({
                   max="300"
                   value={localProps.delayBeforeForward || 15}
                   onChange={(e) => handlePropertyChange('delayBeforeForward', parseInt(e.target.value) || 15)}
-                  className="w-full border border-white/40 rounded px-2 py-1 focus:outline-none bg-white/50 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-mono"
+                  className="w-full border border-white/40 rounded px-2 py-1 focus:outline-none bg-white/50 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-mono text-xs"
                 />
               </div>
             )}
@@ -873,11 +888,25 @@ export default function PropertyPanel({
           <div className="space-y-2 p-3 bg-rose-500/5 rounded-lg border border-rose-500/10 font-medium text-rose-950">
             <h4 className="font-bold text-slate-700 text-xs flex items-center gap-1">
               <Volume2 size={13} className="text-rose-600" />
-              Fichier Message Vocal
+              Configuration Audio & Messagerie
             </h4>
             
+            {(node.type === 'voicemail' || node.type === 'ivr' || node.type === 'greeting') && (
+              <div className="space-y-1 mb-2">
+                <label className="text-[10px] text-slate-500 block font-bold uppercase">N° de Messagerie / N° Interne (Ext)</label>
+                <input
+                  id="prop-node-voicemail-internal-num"
+                  type="text"
+                  value={localProps.internalNumber || ''}
+                  onChange={(e) => handlePropertyChange('internalNumber', e.target.value)}
+                  placeholder="ex: 999, 220 ou votre numéro..."
+                  className="w-full border border-white/40 rounded px-2 py-1 focus:outline-none bg-white/50 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-850 font-mono text-xs font-semibold"
+                />
+              </div>
+            )}
+            
             <div className="space-y-1">
-              <label className="text-[10px] text-slate-500 block">FICHIER ASSOCIÉ (.WAV / .MP3)</label>
+              <label className="text-[10px] text-slate-500 block font-bold uppercase">FICHIER ASSOCIÉ (.WAV / .MP3)</label>
               <input
                 id="prop-node-audio-name"
                 type="text"
