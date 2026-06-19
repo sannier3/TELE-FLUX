@@ -1,0 +1,6 @@
+{
+  "name": "Télé-Flux",
+  "description": "Outil moderne et dynamique de conception de schémas d'appels téléphoniques, plans de numérotation et configuration d'architectures télécoms.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

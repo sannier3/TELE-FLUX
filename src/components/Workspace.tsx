@@ -1,0 +1,648 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useState, useRef, useEffect } from 'react';
+import { 
+  Trash2, 
+  Settings, 
+  HelpCircle, 
+  Link2, 
+  AlertTriangle, 
+  Plus, 
+  MousePointer, 
+  X,
+  Volume2,
+  Clock,
+  User,
+  Users,
+  Layers,
+  Smartphone,
+  PhoneIncoming,
+  PhoneOutgoing,
+  AlertCircle
+} from 'lucide-react';
+import { CallNode, Connection, NodeType } from '../types';
+import { NODE_METADATA } from '../utils/templates';
+
+interface WorkspaceProps {
+  nodes: CallNode[];
+  connections: Connection[];
+  selectedNodeId: string | null;
+  onSelectNode: (id: string | null) => void;
+  onUpdateNodeCoords: (id: string, x: number, y: number) => void;
+  onDeleteNode: (id: string) => void;
+  onAddConnection: (sourceId: string, targetId: string, label: string) => void;
+  onDeleteConnection: (id: string) => void;
+  onUpdateConnectionLabel: (id: string, label: string) => void;
+  validationAlerts: { id: string; type: 'error' | 'warning'; message: string; nodeId?: string }[];
+  onLoadDemo?: () => void;
+}
+
+export default function Workspace({
+  nodes,
+  connections,
+  selectedNodeId,
+  onSelectNode,
+  onUpdateNodeCoords,
+  onDeleteNode,
+  onAddConnection,
+  onDeleteConnection,
+  onUpdateConnectionLabel,
+  validationAlerts,
+  onLoadDemo
+}: WorkspaceProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [drawingConnSourceId, setDrawingConnSourceId] = useState<string | null>(null);
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+
+  // Handle keys like Escape to abort connection drawing
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setDrawingConnSourceId(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  const handleWorkspaceClick = (e: React.MouseEvent) => {
+    if (e.target === containerRef.current || (e.target as HTMLElement).id === 'grid-svg') {
+      onSelectNode(null);
+      setDrawingConnSourceId(null);
+    }
+  };
+
+  const handleNodeMouseDown = (e: React.MouseEvent, node: CallNode) => {
+    if (drawingConnSourceId) return; // Don't drag if drawing connection
+    e.stopPropagation();
+    
+    // Select the node
+    onSelectNode(node.id);
+    
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const nodeX = node.x;
+      const nodeY = node.y;
+      
+      // Mouse coordinate inside workspace canvas
+      const mouseX = e.clientX - rect.left + containerRef.current.scrollLeft;
+      const mouseY = e.clientY - rect.top + containerRef.current.scrollTop;
+      
+      setDraggingNodeId(node.id);
+      setDragOffset({
+        x: mouseX - nodeX,
+        y: mouseY - nodeY
+      });
+    }
+  };
+
+  const handleWorkspaceMouseMove = (e: React.MouseEvent) => {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left + containerRef.current.scrollLeft;
+    const mouseY = e.clientY - rect.top + containerRef.current.scrollTop;
+
+    // 1. Handle node dragging
+    if (draggingNodeId) {
+      let nextX = mouseX - dragOffset.x;
+      let nextY = mouseY - dragOffset.y;
+
+      // Snapping to 10px grid
+      nextX = Math.round(nextX / 10) * 10;
+      nextY = Math.round(nextY / 10) * 10;
+
+      // Keep within boundaries
+      nextX = Math.max(10, Math.min(2300, nextX));
+      nextY = Math.max(10, Math.min(1700, nextY));
+
+      onUpdateNodeCoords(draggingNodeId, nextX, nextY);
+    }
+
+    // 2. Handle connection line drawing
+    if (drawingConnSourceId) {
+      setMousePos({ x: mouseX, y: mouseY });
+    }
+  };
+
+  const handleWorkspaceMouseUp = () => {
+    setDraggingNodeId(null);
+  };
+
+  const startDrawingConnection = (e: React.MouseEvent, nodeId: string) => {
+    e.stopPropagation();
+    setDrawingConnSourceId(nodeId);
+    
+    // Initialize mouse position
+    const sourceNode = nodes.find(n => n.id === nodeId);
+    if (sourceNode && containerRef.current) {
+      setMousePos({
+        x: sourceNode.x + 190,
+        y: sourceNode.y + 45
+      });
+    }
+  };
+
+  const completeConnection = (e: React.MouseEvent, targetId: string) => {
+    e.stopPropagation();
+    if (!drawingConnSourceId) return;
+
+    if (drawingConnSourceId === targetId) {
+      setDrawingConnSourceId(null);
+      return;
+    }
+
+    // Check if connection already exists
+    const exists = connections.some(
+      c => c.sourceId === drawingConnSourceId && c.targetId === targetId
+    );
+
+    if (!exists) {
+      // Prompt a basic label or default to first choice
+      onAddConnection(drawingConnSourceId, targetId, 'appel direct');
+    }
+    setDrawingConnSourceId(null);
+  };
+
+  // Node width is stylized as 190, height is 90
+  const getNodeCenter = (nodeId: string) => {
+    const node = nodes.find(n => n.id === nodeId);
+    if (!node) return { x: 0, y: 0 };
+    return {
+      x: node.x + 95,
+      y: node.y + 45
+    };
+  };
+
+  const getNodeOutlet = (nodeId: string) => {
+    const node = nodes.find(n => n.id === nodeId);
+    if (!node) return { x: 0, y: 0 };
+    return {
+      x: node.x + 190,
+      y: node.y + 45
+    };
+  };
+
+  const getNodeInlet = (nodeId: string) => {
+    const node = nodes.find(n => n.id === nodeId);
+    if (!node) return { x: 0, y: 0 };
+    return {
+      x: node.x,
+      y: node.y + 45
+    };
+  };
+
+  const getIcon = (iconName: string, category: string) => {
+    const cls = "w-4 h-4";
+    switch (iconName) {
+      case 'database':
+        return <Layers className={`${cls} text-emerald-600`} />;
+      case 'phone-incoming':
+        return <PhoneIncoming className={`${cls} text-emerald-700`} />;
+      case 'hash':
+        return <AlertCircle className={`${cls} text-teal-600`} />;
+      case 'phone':
+        return <PhoneIncoming className={`${cls} text-indigo-600`} />;
+      case 'phone-outgoing':
+        return <PhoneOutgoing className={`${cls} text-slate-500`} />;
+      case 'user':
+        return <User className={`${cls} text-blue-600`} />;
+      case 'phone-call':
+        return <PhoneIncoming className={`${cls} text-sky-500`} />;
+      case 'layers':
+        return <Layers className={`${cls} text-amber-500`} />;
+      case 'users':
+        return <Users className={`${cls} text-yellow-600`} />;
+      case 'clock':
+        return <Clock className={`${cls} text-amber-500`} />;
+      case 'phone-forwarded':
+        return <Link2 className={`${cls} text-violet-500`} />;
+      case 'phone-missed':
+        return <Link2 className={`${cls} text-fuchsia-500`} />;
+      case 'phone-off':
+        return <Link2 className={`${cls} text-pink-500`} />;
+      case 'voicemail':
+        return <Volume2 className={`${cls} text-rose-500`} />;
+      case 'volume2':
+        return <Volume2 className={`${cls} text-red-500`} />;
+      case 'sun':
+        return <Clock className={`${cls} text-indigo-500`} />;
+      case 'external-link':
+        return <Link2 className={`${cls} text-blue-500`} />;
+      case 'smartphone':
+        return <Smartphone className={`${cls} text-cyan-500`} />;
+      case 'shield-alert':
+        return <AlertTriangle className={`${cls} text-red-600 animate-bounce`} />;
+      default:
+        return <HelpCircle className={`${cls} text-slate-400`} />;
+    }
+  };
+
+  // Connection flow labels options
+  const CONNECTION_LABEL_PRESETS = [
+    'appel entrant',
+    'si occupé',
+    'si non-réponse',
+    'hors horaires',
+    'jours ouvrés',
+    'touche 1',
+    'touche 2',
+    'touche 3',
+    'débordement',
+    'messagerie',
+    'sinon',
+    'renvoi direct'
+  ];
+
+  return (
+    <div className="flex-1 flex flex-col h-full bg-transparent overflow-hidden relative" id="workspace-wrapper">
+      {/* Dynamic validation alerts banner */}
+      {validationAlerts.length > 0 && (
+        <div className="bg-amber-500/10 backdrop-blur-md border-b border-amber-500/20 px-4 py-2 flex items-center gap-3 overflow-x-auto text-xs shrink-0 select-none">
+          <div className="flex items-center gap-1 font-bold text-amber-800">
+            <AlertTriangle size={15} />
+            <span>DIAGNOSTICS ({validationAlerts.length}) :</span>
+          </div>
+          <div className="flex items-center gap-4 divide-x divide-amber-500/20">
+            {validationAlerts.map((alert, idx) => (
+              <span 
+                key={idx} 
+                className="pl-4 text-amber-700 hover:text-amber-950 transition-colors cursor-pointer flex items-center gap-1"
+                onClick={() => alert.nodeId && onSelectNode(alert.nodeId)}
+                title="Cliquez pour sélectionner le bloc en erreur"
+              >
+                ● {alert.message}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Editor instructions or stats bar */}
+      <div className="bg-white/45 backdrop-blur-md border-b border-white/20 py-1.5 px-4 text-[11px] text-slate-600 flex items-center justify-between shrink-0 select-none">
+        <div className="flex items-center gap-2">
+          <span className="bg-white/40 px-2 py-0.5 rounded border border-white/40 font-semibold text-slate-700 shadow-2xs">{nodes.length} Nœuds</span>
+          <span className="bg-white/40 px-2 py-0.5 rounded border border-white/40 font-semibold text-slate-700 shadow-2xs">{connections.length} Connexions</span>
+        </div>
+        <div>
+          {drawingConnSourceId ? (
+            <span className="text-blue-600 font-semibold animate-pulse">
+              [CONSTRUCTION EN COURS] Clickez sur un nœud de destination pour lier (Échap pour annuler)
+            </span>
+          ) : (
+            <span>Glissez les blocs pour organiser. Cliquez-glissez du bouton <span className="text-blue-650 font-bold">(+)</span> pour relier.</span>
+          )}
+        </div>
+      </div>
+
+      {/* Main Spacious Canvas container scroll overflow */}
+      <div
+        ref={containerRef}
+        onMouseMove={handleWorkspaceMouseMove}
+        onMouseUp={handleWorkspaceMouseUp}
+        onClick={handleWorkspaceClick}
+        className="flex-1 overflow-auto relative scrollbar-thin scroll-smooth animate-fade-in"
+        id="panning-canvas-container"
+        style={{ cursor: drawingConnSourceId ? 'cell' : 'default' }}
+      >
+        {/* Render clean empty state warning overlay if workspace has 0 nodes */}
+        {nodes.length === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center p-6 z-30 pointer-events-none">
+            <div className="max-w-md w-full bg-white/95 backdrop-blur-md rounded-2xl p-6 border border-slate-200 shadow-xl pointer-events-auto text-center space-y-4">
+              <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mx-auto">
+                <PhoneIncoming size={24} />
+              </div>
+              <div className="space-y-1">
+                <h3 className="font-bold text-slate-900 text-lg">Espace de travail vierge</h3>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Votre programmation est actuellement vide. Commencez à construire votre routage téléphonique ou chargez le scénario de démonstration :
+                </p>
+              </div>
+              
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-150 text-left space-y-2 text-xs text-slate-600">
+                <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                  <span>💡 Guide de démarrage :</span>
+                </div>
+                <div className="flex gap-2">
+                  <span className="font-bold text-blue-600">1.</span>
+                  <span>Cliquez sur les boutons du panneau de gauche pour ajouter des blocs (Numéros, Postes, Routage).</span>
+                </div>
+                <div className="flex gap-2">
+                  <span className="font-bold text-blue-600">2.</span>
+                  <span>Reliez les blocs en glissant depuis l'icône <span className="font-bold text-blue-600 font-mono text-[13px]">(+)</span> à droite d'un bloc.</span>
+                </div>
+              </div>
+
+              {onLoadDemo && (
+                <button
+                  id="btn-load-demo-empty"
+                  onClick={onLoadDemo}
+                  className="w-full bg-[#2563eb] text-white hover:bg-blue-700 px-4 py-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/15 cursor-pointer"
+                >
+                  <Layers size={14} />
+                  <span>Activer la Démo Acme Corp</span>
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        <div 
+          className="w-[2400px] h-[1800px] bg-transparent relative"
+          id="grid-canvas-stage"
+          style={{
+            backgroundImage: 'radial-gradient(var(--grid-dot) 1px, transparent 1px)',
+            backgroundSize: '24px 24px',
+          }}
+        >
+          {/* SVG Overlay containing all connection paths and curves */}
+          <svg
+            id="grid-svg"
+            className="absolute inset-0 pointer-events-none w-full h-full"
+            style={{ zIndex: 10 }}
+          >
+            {/* Draw active connection line preview */}
+            {drawingConnSourceId && (
+              (() => {
+                const outlet = getNodeOutlet(drawingConnSourceId);
+                const dx = Math.abs(mousePos.x - outlet.x) * 0.4;
+                const pathStr = `M ${outlet.x},${outlet.y} C ${outlet.x + dx},${outlet.y} ${mousePos.x - dx},${mousePos.y} ${mousePos.x},${mousePos.y}`;
+                return (
+                  <path
+                    d={pathStr}
+                    stroke="#10b981"
+                    strokeWidth="3"
+                    strokeDasharray="6 4"
+                    fill="none"
+                    className="animate-pulse"
+                  />
+                );
+              })()
+            )}
+
+            {/* Draw existing connections */}
+            {connections.map(conn => {
+              const start = getNodeOutlet(conn.sourceId);
+              const end = getNodeInlet(conn.targetId);
+              
+              if (!start || !end) return null;
+
+              // Compute nice curved path
+              const dx = Math.max(80, Math.abs(end.x - start.x) * 0.5);
+              const curveX1 = start.x + dx;
+              const curveY1 = start.y;
+              const curveX2 = end.x - dx;
+              const curveY2 = end.y;
+              const pathStr = `M ${start.x},${start.y} C ${curveX1},${curveY1} ${curveX2},${curveY2} ${end.x},${end.y}`;
+
+              // Arrow points directly
+              return (
+                <g key={conn.id} className="group pointer-events-auto">
+                  {/* Invisible thicker interaction path for easier selection */}
+                  <path
+                    d={pathStr}
+                    stroke="transparent"
+                    strokeWidth="12"
+                    fill="none"
+                    className="cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDeleteConnection(conn.id);
+                    }}
+                  />
+                  {/* Beautiful visual connector line */}
+                  <path
+                    d={pathStr}
+                    stroke={selectedNodeId === conn.sourceId ? '#3b82f6' : '#94a3b8'}
+                    strokeWidth={selectedNodeId === conn.sourceId ? '2.5' : '2'}
+                    fill="none"
+                    className="group-hover:stroke-teal-500 transition-colors"
+                  />
+                  {/* Arrowhead endpoint */}
+                  <polygon
+                    points={`${end.x},${end.y} ${end.x - 7},${end.y - 4} ${end.x - 7},${end.y + 4}`}
+                    fill={selectedNodeId === conn.sourceId ? '#3b82f6' : '#94a3b8'}
+                    className="group-hover:fill-teal-500 transition-colors"
+                  />
+                </g>
+              );
+            })}
+          </svg>
+
+          {/* Connection Labels Badges overlaid as HTML elements for better text display and form select option inputs */}
+          {connections.map(conn => {
+            const start = getNodeOutlet(conn.sourceId);
+            const end = getNodeInlet(conn.targetId);
+            if (!start || !end) return null;
+
+            // Compute center point of the curve
+            const dx = Math.max(80, Math.abs(end.x - start.x) * 0.5);
+            const t = 0.5; // mid point parameter
+            const midX = (1 - t) * (1 - t) * (1 - t) * start.x + 3 * (1 - t) * (1 - t) * t * (start.x + dx) + 3 * (1 - t) * t * t * (end.x - dx) + t * t * t * end.x;
+            const midY = (1 - t) * (1 - t) * (1 - t) * start.y + 3 * (1 - t) * (1 - t) * t * start.y + 3 * (1 - t) * t * t * end.y + t * t * t * end.y;
+
+            return (
+              <div
+                key={`label-${conn.id}`}
+                className="absolute transform -translate-x-1/2 -translate-y-1/2 bg-white border border-slate-300 rounded shadow-sm px-1 py-0.5 z-20 flex items-center gap-1 text-[10px] text-slate-700"
+                style={{ left: midX, top: midY }}
+              >
+                <select
+                  value={conn.label}
+                  onChange={(e) => onUpdateConnectionLabel(conn.id, e.target.value)}
+                  className="bg-transparent border-none font-semibold text-[10px] text-teal-800 focus:outline-none cursor-pointer"
+                  id={`select-label-${conn.id}`}
+                >
+                  {CONNECTION_LABEL_PRESETS.map((p, i) => (
+                    <option key={i} value={p}>{p}</option>
+                  ))}
+                  {!CONNECTION_LABEL_PRESETS.includes(conn.label) && (
+                    <option value={conn.label}>{conn.label}</option>
+                  )}
+                </select>
+                <button
+                  onClick={() => onDeleteConnection(conn.id)}
+                  className="text-slate-400 hover:text-red-500 hover:bg-slate-100 p-0.5 rounded transition-colors"
+                  title="Supprimer la liaison"
+                  id={`delete-conn-${conn.id}`}
+                >
+                  <X size={10} />
+                </button>
+              </div>
+            );
+          })}
+
+          {/* Render individual telephony blocks as absolute-positioned cards */}
+          {nodes.map(node => {
+            const meta = NODE_METADATA[node.type];
+            if (!meta) return null;
+            const isSelected = selectedNodeId === node.id;
+            const hasAlert = validationAlerts.some(a => a.nodeId === node.id);
+
+            return (
+              <div
+                id={`node-${node.id}`}
+                key={node.id}
+                onMouseDown={(e) => handleNodeMouseDown(e, node)}
+                className={`absolute w-[190px] h-[100px] flex flex-col rounded-xl glass-node border select-none transition-all ${
+                  isSelected 
+                    ? 'border-blue-500 ring-4 ring-blue-500/10 shadow-xl scale-[1.02]' 
+                    : hasAlert
+                    ? 'border-amber-450 bg-amber-500/5 shadow-md shadow-amber-500/5'
+                    : 'border-white/40 shadow-sm'
+                }`}
+                style={{ left: node.x, top: node.y, zIndex: isSelected ? 30 : 20 }}
+              >
+                {/* Node Title header with colored category header bar */}
+                <div className={`px-2.5 py-1.5 rounded-t-xl bg-white/40 border-b border-white/20 flex items-center justify-between drag-handle`}>
+                  <div className="flex items-center gap-1.5 overflow-hidden">
+                    <span className="shrink-0">{getIcon(meta.iconName, meta.category)}</span>
+                    <span className="text-[11px] font-extrabold text-slate-800 truncate" title={node.name}>
+                      {node.name}
+                    </span>
+                  </div>
+                  
+                  {/* Action buttons on node card */}
+                  <div className="flex items-center gap-0.5 shrink-0">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteNode(node.id);
+                      }}
+                      className="text-slate-400 hover:text-red-500 hover:bg-red-500/10 p-0.5 rounded transition-all cursor-pointer"
+                      title="Supprimer ce bloc"
+                      id={`workspace-delete-node-${node.id}`}
+                    >
+                      <Trash2 size={11} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Node body displaying current configurations directly inside the flow */}
+                <div className="flex-1 p-2 flex flex-col justify-between text-left relative overflow-hidden bg-white/20 rounded-b-xl">
+                  {/* Warning overlay icon if block has warning status */}
+                  {hasAlert && (
+                    <div className="absolute right-1 bottom-1 p-0.5 bg-amber-500 text-white rounded-full shadow-sm" title="Problème détecté">
+                      <AlertTriangle size={10} className="animate-pulse" />
+                    </div>
+                  )}
+
+                  {/* Primary context text display */}
+                  <div className="text-[10px] text-slate-500 line-clamp-1">
+                    {node.type === 'sda' || node.type === 'ndi' || node.type === 'nds' ? (
+                      <span className="font-semibold text-slate-800">No: {node.properties.number || 'Non configuré'}</span>
+                    ) : node.type === 'user_station' ? (
+                      <span className="font-semibold text-slate-800">Poste {node.properties.internalNumber} : {node.properties.userName || node.properties.stationName}</span>
+                    ) : node.type === 'voicemail' ? (
+                      <span className="font-semibold text-slate-800">Bv: {node.properties.internalNumber || '999'}</span>
+                    ) : node.type === 'ivr' ? (
+                      <span className="text-amber-800 font-semibold">{node.properties.audioMessageName || 'SVI par défaut'}</span>
+                    ) : node.type === 'day_night' || node.type === 'time_range' ? (
+                      <span className="text-indigo-800 font-semibold truncate block">{node.properties.timeSchedule || 'Horaires 24h'}</span>
+                    ) : node.type === 'forward_unconditional' || node.type === 'forward_no_answer' || node.type === 'forward_busy' || node.type === 'transfer' ? (
+                      <span className="text-violet-800 font-semibold">Vers: {node.properties.forwardDestination || 'Inconnu'}</span>
+                    ) : node.type === 'mobile_external' ? (
+                      <span className="font-semibold text-slate-800">Mob: {node.properties.number || '06...'}</span>
+                    ) : (
+                      <span>{node.properties.description || meta.label}</span>
+                    )}
+                  </div>
+
+                  {/* Row of badges/indicators for advanced features */}
+                  {(node.properties?.nodeStatus || node.properties?.forwardType || node.properties?.keyConfig || node.properties?.targetPlatform) && (
+                    <div className="flex flex-wrap gap-1 mt-1 max-h-[18px] overflow-hidden select-none pointer-events-none">
+                      {node.properties.nodeStatus && (
+                        <span className={`inline-flex items-center gap-0.5 text-[7px] font-black px-1 rounded-xs border leading-tight ${
+                          ['disponible', 'ouvert', 'jour'].includes(node.properties.nodeStatus)
+                            ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-800'
+                            : ['fermé', 'nuit', 'indisponible', 'hors service'].includes(node.properties.nodeStatus)
+                            ? 'bg-rose-500/10 border-rose-500/25 text-rose-800'
+                            : ['urgence', 'd\'astreinte', 'débordement actif'].includes(node.properties.nodeStatus)
+                            ? 'bg-amber-500/10 border-amber-500/25 text-amber-800'
+                            : 'bg-teal-500/10 border-teal-500/25 text-teal-850'
+                        }`}>
+                          <span className={`w-1 h-1 rounded-full shrink-0 ${
+                            ['disponible', 'ouvert', 'jour'].includes(node.properties.nodeStatus)
+                              ? 'bg-emerald-500 animate-pulse'
+                              : ['fermé', 'nuit', 'indisponible', 'hors service'].includes(node.properties.nodeStatus)
+                              ? 'bg-rose-500'
+                              : 'bg-amber-500'
+                          }`} />
+                          <span className="truncate max-w-[45px] uppercase">{node.properties.nodeStatusCustom || node.properties.nodeStatus}</span>
+                        </span>
+                      )}
+
+                      {node.properties.forwardType === 'manual' && (
+                        <span className="inline-flex items-center gap-0.5 text-[7px] font-black px-1 rounded-xs bg-amber-500/10 border border-amber-550/25 text-amber-850" title="Renvoi Manuel activé">
+                          <span>🖐️</span>
+                          <span className="uppercase text-[6px]">MAN</span>
+                        </span>
+                      )}
+
+                      {node.properties.forwardType === 'scheduled' && (
+                        <span className="inline-flex items-center gap-0.5 text-[7px] font-black px-1 rounded-xs bg-cyan-500/10 border border-cyan-500/25 text-cyan-850" title="Renvoi Programmé / Horaire">
+                          <span>📅</span>
+                          <span className="uppercase text-[6px]">AUTO</span>
+                        </span>
+                      )}
+
+                      {node.properties.keyConfig && (
+                        <span className="inline-flex items-center gap-0.5 text-[7px] font-black px-1 rounded-xs bg-purple-500/10 border border-purple-500/25 text-purple-850" title="Touche Physique ou BLF rattachée">
+                          <span>🔑</span>
+                          <span className="uppercase text-[6px]">{node.properties.keyConfig.keyType === 'Code fonction' ? 'CODE' : (node.properties.keyConfig.keyType || 'BLF')}</span>
+                        </span>
+                      )}
+
+                      {node.properties.targetPlatform && (
+                        <span className="inline-flex items-center text-[7px] font-extrabold px-1 rounded-xs bg-slate-500/10 border border-slate-500/25 text-slate-800" title={`Plateforme : ${node.properties.targetPlatform}`}>
+                          <span className="truncate max-w-[32px]">{node.properties.targetPlatform === 'Centrex opérateur' ? 'Centrex' : node.properties.targetPlatform}</span>
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Secondary small indicators info */}
+                  <div className="flex items-center justify-between text-[9px] text-slate-400">
+                    <span className="truncate bg-white/40 border border-white/40 px-1 py-0.5 rounded text-slate-705 font-medium shadow-2xs">
+                      {meta.label}
+                    </span>
+                    <span className="italic font-mono text-[8px] opacity-75">
+                      x:{node.x} y:{node.y}
+                    </span>
+                  </div>
+                </div>
+
+                {/* VISUAL PORTS */}
+                {/* 1. Receiving Inlet dot on left border (Allows completing a connection line) */}
+                <div
+                  id={`inlet-${node.id}`}
+                  onClick={(e) => drawingConnSourceId ? completeConnection(e, node.id) : null}
+                  className={`absolute -left-1.5 top-[45px] w-3 h-3 rounded-full border bg-white focus:outline-none transition-all z-35 cursor-pointer ${
+                    drawingConnSourceId 
+                      ? 'border-blue-500 bg-blue-105 ring-4 ring-blue-550/20 animate-pulse scale-125' 
+                      : 'border-slate-300 hover:bg-slate-100 hover:border-slate-450 hover:scale-125'
+                  }`}
+                  title={drawingConnSourceId ? "Cliquez pour brancher le commutateur ici" : "Port d'entrée direct d'appels"}
+                />
+
+                {/* 2. Emitting Outlet button/dot on right border (Allows drawing a connection line) */}
+                <button
+                  id={`outlet-${node.id}`}
+                  onMouseDown={(e) => startDrawingConnection(e, node.id)}
+                  className="absolute -right-1.5 top-[45px] w-3 h-3 rounded-full border border-slate-300 bg-white hover:bg-[#2563eb] hover:border-[#2563eb] hover:scale-125 transition-all z-35 flex items-center justify-center cursor-crosshair group-hover:scale-110"
+                  title="Faites glisser ou cliquez pour créer une liaison sortante"
+                >
+                  <div className="w-1.5 h-1.5 bg-slate-400 rounded-full hover:bg-white" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}

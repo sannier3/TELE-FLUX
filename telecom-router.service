@@ -1,0 +1,20 @@
+[Unit]
+Description=Concepteur et Visualiseur de Routage Télécom (Vite/React)
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/var/www/telecom-router
+ExecStart=/usr/bin/npm run preview -- --port 3000 --host 0.0.0.0
+Restart=always
+RestartSec=10
+Environment=NODE_ENV=production
+
+# Security hardening (optional but recommended for Debian)
+PrivateTmp=true
+ProtectSystem=full
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
