@@ -203,11 +203,11 @@ function FlowchartReadonlyVisual({ project, showDownload = false }: { project: T
   const rawMaxX = computedXs.length > 0 ? Math.max(...computedXs) + nodeWidth : 900;
   const rawMaxY = computedYs.length > 0 ? Math.max(...computedYs) + nodeHeight : 500;
 
-  const padding = 50;
+  const padding = 60;
   const minX = rawMinX - padding;
   const minY = rawMinY - padding;
-  const width = Math.max(950, rawMaxX - rawMinX + (padding * 2));
-  const height = Math.max(450, rawMaxY - rawMinY + (padding * 2));
+  const width = Math.max(250, rawMaxX - rawMinX + (padding * 2));
+  const height = Math.max(150, rawMaxY - rawMinY + (padding * 2));
 
   // High quality matching HEX colors for SVG elements matching the telecom themes
   const getColorScheme = (color: string) => {
@@ -260,6 +260,11 @@ function FlowchartReadonlyVisual({ project, showDownload = false }: { project: T
         source = source.replace(/^<svg/, '<svg xmlns:xlink="http://www.w3.org/1999/xlink"');
       }
       
+      // Inject physical dimensions matching viewport so third party viewers can scale correctly
+      if (!source.match(/^<svg[^>]+width=/)) {
+        source = source.replace(/^<svg/, `<svg width="${width}" height="${height}"`);
+      }
+      
       const xmlHeader = '<?xml version="1.0" encoding="utf-8"?>\n';
       const svgBlob = new Blob([xmlHeader + source], { type: 'image/svg+xml;charset=utf-8' });
       const svgUrl = URL.createObjectURL(svgBlob);
@@ -292,13 +297,18 @@ function FlowchartReadonlyVisual({ project, showDownload = false }: { project: T
         source = source.replace(/^<svg/, '<svg xmlns:xlink="http://www.w3.org/1999/xlink"');
       }
       
+      // Explicit physical width and height attributes are critical so browser's 'Image' respects coordinates
+      if (!source.match(/^<svg[^>]+width=/)) {
+        source = source.replace(/^<svg/, `<svg width="${width}" height="${height}"`);
+      }
+      
       const svgBlob = new Blob([source], { type: 'image/svg+xml;charset=utf-8' });
       const svgUrl = URL.createObjectURL(svgBlob);
       
       const img = new window.Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const scale = 2.5; // High definition scaling
+        const scale = 3.5; // High definition scaling for crystal clear rendering
         canvas.width = width * scale;
         canvas.height = height * scale;
         
