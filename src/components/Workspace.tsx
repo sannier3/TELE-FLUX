@@ -21,7 +21,8 @@ import {
   Smartphone,
   PhoneIncoming,
   PhoneOutgoing,
-  AlertCircle
+  AlertCircle,
+  Sparkles
 } from 'lucide-react';
 import { CallNode, Connection, NodeType } from '../types';
 import { NODE_METADATA } from '../utils/templates';
@@ -30,8 +31,11 @@ interface WorkspaceProps {
   nodes: CallNode[];
   connections: Connection[];
   selectedNodeId: string | null;
+  selectedNodeIds?: string[];
   onSelectNode: (id: string | null) => void;
+  onSelectNodes?: (ids: string[]) => void;
   onUpdateNodeCoords: (id: string, x: number, y: number) => void;
+  onUpdateNodesCoords?: (updates: { id: string; x: number; y: number }[]) => void;
   onDeleteNode: (id: string) => void;
   onAddConnection: (sourceId: string, targetId: string, label: string) => void;
   onDeleteConnection: (id: string) => void;
@@ -44,8 +48,11 @@ export default function Workspace({
   nodes,
   connections,
   selectedNodeId,
+  selectedNodeIds = [],
   onSelectNode,
+  onSelectNodes,
   onUpdateNodeCoords,
+  onUpdateNodesCoords,
   onDeleteNode,
   onAddConnection,
   onDeleteConnection,
@@ -55,7 +62,8 @@ export default function Workspace({
 }: WorkspaceProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [initialDragPositions, setInitialDragPositions] = useState<{ [id: string]: { x: number; y: number } }>({});
+  const [dragStartMouse, setDragStartMouse] = useState({ x: 0, y: 0 });
   const [drawingConnSourceId, setDrawingConnSourceId] = useState<string | null>(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
 
@@ -71,8 +79,16 @@ export default function Workspace({
   }, []);
 
   const handleWorkspaceClick = (e: React.MouseEvent) => {
-    if (e.target === containerRef.current || (e.target as HTMLElement).id === 'grid-svg') {
-      onSelectNode(null);
+    if (
+      e.target === containerRef.current || 
+      (e.target as HTMLElement).id === 'grid-svg' || 
+      (e.target as HTMLElement).id === 'grid-canvas-stage'
+    ) {
+      if (onSelectNodes) {
+        onSelectNodes([]);
+      } else {
+        onSelectNode(null);
+      }
       setDrawingConnSourceId(null);
     }
   };
@@ -81,23 +97,44 @@ export default function Workspace({
     if (drawingConnSourceId) return; // Don't drag if drawing connection
     e.stopPropagation();
     
-    // Select the node
-    onSelectNode(node.id);
+    let nextSelectedIds = [...selectedNodeIds];
+    const isShiftPressed = e.shiftKey || e.ctrlKey || e.metaKey;
+    const isAlreadySelected = nextSelectedIds.includes(node.id);
+
+    if (isShiftPressed) {
+      if (isAlreadySelected) {
+        nextSelectedIds = nextSelectedIds.filter(id => id !== node.id);
+      } else {
+        nextSelectedIds.push(node.id);
+      }
+    } else {
+      if (!isAlreadySelected) {
+        nextSelectedIds = [node.id];
+      }
+    }
+
+    if (onSelectNodes) {
+      onSelectNodes(nextSelectedIds);
+    } else {
+      onSelectNode(node.id);
+    }
     
     if (containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
-      const nodeX = node.x;
-      const nodeY = node.y;
-      
-      // Mouse coordinate inside workspace canvas
       const mouseX = e.clientX - rect.left + containerRef.current.scrollLeft;
       const mouseY = e.clientY - rect.top + containerRef.current.scrollTop;
       
       setDraggingNodeId(node.id);
-      setDragOffset({
-        x: mouseX - nodeX,
-        y: mouseY - nodeY
+      setDragStartMouse({ x: mouseX, y: mouseY });
+
+      // Save starting coordinates of ALL nodes in the selection
+      const positions: { [id: string]: { x: number; y: number } } = {};
+      nodes.forEach(n => {
+        if (nextSelectedIds.includes(n.id)) {
+          positions[n.id] = { x: n.x, y: n.y };
+        }
       });
+      setInitialDragPositions(positions);
     }
   };
 
@@ -107,20 +144,38 @@ export default function Workspace({
     const mouseX = e.clientX - rect.left + containerRef.current.scrollLeft;
     const mouseY = e.clientY - rect.top + containerRef.current.scrollTop;
 
-    // 1. Handle node dragging
+    // 1. Handle node dragging or multi-dragging
     if (draggingNodeId) {
-      let nextX = mouseX - dragOffset.x;
-      let nextY = mouseY - dragOffset.y;
+      const dx = mouseX - dragStartMouse.x;
+      const dy = mouseY - dragStartMouse.y;
 
-      // Snapping to 10px grid
-      nextX = Math.round(nextX / 10) * 10;
-      nextY = Math.round(nextY / 10) * 10;
+      const updates: { id: string; x: number; y: number }[] = [];
 
-      // Keep within boundaries
-      nextX = Math.max(10, Math.min(2300, nextX));
-      nextY = Math.max(10, Math.min(1700, nextY));
+      Object.keys(initialDragPositions).forEach(id => {
+        const initial = initialDragPositions[id];
+        if (!initial) return;
 
-      onUpdateNodeCoords(draggingNodeId, nextX, nextY);
+        let nextX = initial.x + dx;
+        let nextY = initial.y + dy;
+
+        // Snapping to 10px grid
+        nextX = Math.round(nextX / 10) * 10;
+        nextY = Math.round(nextY / 10) * 10;
+
+        // Keep within boundaries (prevent nodes leaking out of the bounds/screen)
+        nextX = Math.max(10, Math.min(2200, nextX));
+        nextY = Math.max(10, Math.min(1650, nextY));
+
+        updates.push({ id, x: nextX, y: nextY });
+      });
+
+      if (updates.length > 0) {
+        if (onUpdateNodesCoords) {
+          onUpdateNodesCoords(updates);
+        } else {
+          updates.forEach(u => onUpdateNodeCoords(u.id, u.x, u.y));
+        }
+      }
     }
 
     // 2. Handle connection line drawing
@@ -131,6 +186,112 @@ export default function Workspace({
 
   const handleWorkspaceMouseUp = () => {
     setDraggingNodeId(null);
+  };
+
+  const triggerRepulsionAnimation = () => {
+    let currentNodes = [...nodes];
+    let iteration = 0;
+    const maxIterations = 50;
+
+    const step = () => {
+      let moved = false;
+      const updatedNodes = currentNodes.map(node => {
+        let fx = 0;
+        let fy = 0;
+
+        // 1. Repulsion from other nodes
+        currentNodes.forEach(other => {
+          if (other.id === node.id) return;
+          const dx = node.x - other.x;
+          const dy = node.y - other.y;
+          const absDx = Math.abs(dx);
+          const absDy = Math.abs(dy);
+
+          // Node standard dimensions: W=190, H=100.
+          // Ideal center separation: horizontal=270, vertical=150
+          if (absDx < 260 && absDy < 140) {
+            const forceX = absDx < 10 ? (Math.random() - 0.5) * 8 : dx;
+            const forceY = absDy < 10 ? (Math.random() - 0.5) * 8 : dy;
+            const dist = Math.sqrt(forceX * forceX + forceY * forceY) || 1;
+            const intensity = (260 - absDx) * 0.2;
+            fx += (forceX / dist) * intensity;
+            fy += (forceY / dist) * (140 - absDy) * 0.2;
+          }
+        });
+
+        // 2. Repulsion from connection labels (so text is never hidden!)
+        connections.forEach(conn => {
+          const s = currentNodes.find(n => n.id === conn.sourceId);
+          const eNode = currentNodes.find(n => n.id === conn.targetId);
+          if (!s || !eNode) return;
+
+          // Compute connection midX, midY
+          const startX = s.x + 190;
+          const startY = s.y + 45;
+          const endX = eNode.x;
+          const endY = eNode.y + 45;
+
+          const dx = Math.max(80, Math.abs(endX - startX) * 0.5);
+          const t = 0.5;
+          const midX = (1 - t) * (1 - t) * (1 - t) * startX + 3 * (1 - t) * (1 - t) * t * (startX + dx) + 3 * (1 - t) * t * t * (endX - dx) + t * t * t * endX;
+          const midY = (1 - t) * (1 - t) * (1 - t) * startY + 3 * (1 - t) * (1 - t) * t * startY + 3 * (1 - t) * t * t * endY + t * t * t * endY;
+
+          // Center of current node
+          const cx = node.x + 95;
+          const cy = node.y + 50;
+
+          const diffX = cx - midX;
+          const diffY = cy - midY;
+          const absDiffX = Math.abs(diffX);
+          const absDiffY = Math.abs(diffY);
+
+          // If label coordinates fall inside or near the node rectangle (W=190, H=100)
+          if (absDiffX < 140 && absDiffY < 90) {
+            const dist = Math.sqrt(diffX * diffX + diffY * diffY) || 1;
+            const fIntensityX = (140 - absDiffX) * 0.35;
+            const fIntensityY = (90 - absDiffY) * 0.35;
+            fx += (diffX / dist) * fIntensityX;
+            fy += (diffY / dist) * fIntensityY;
+          }
+        });
+
+        // Apply forces to node position
+        if (Math.abs(fx) > 0.1 || Math.abs(fy) > 0.1) {
+          const maxStep = 30; // Caps transition step to prevent node exploding off
+          const moveX = Math.max(-maxStep, Math.min(maxStep, fx));
+          const moveY = Math.max(-maxStep, Math.min(maxStep, fy));
+
+          let nextX = Math.round(node.x + moveX);
+          let nextY = Math.round(node.y + moveY);
+
+          // Boundaries checking (ensures cards NEVER overflow the viewport/canvas)
+          nextX = Math.max(10, Math.min(2200, nextX));
+          nextY = Math.max(10, Math.min(1650, nextY));
+
+          if (nextX !== node.x || nextY !== node.y) {
+            moved = true;
+            return { ...node, x: nextX, y: nextY };
+          }
+        }
+
+        return node;
+      });
+
+      if (moved && iteration < maxIterations) {
+        currentNodes = updatedNodes;
+        iteration++;
+        
+        if (onUpdateNodesCoords) {
+          onUpdateNodesCoords(updatedNodes.map(n => ({ id: n.id, x: n.x, y: n.y })));
+        } else {
+          updatedNodes.forEach(n => onUpdateNodeCoords(n.id, n.x, n.y));
+        }
+
+        requestAnimationFrame(step);
+      }
+    };
+
+    requestAnimationFrame(step);
   };
 
   const startDrawingConnection = (e: React.MouseEvent, nodeId: string) => {
@@ -249,9 +410,16 @@ export default function Workspace({
     'si non-réponse',
     'hors horaires',
     'jours ouvrés',
+    'touche 0',
     'touche 1',
     'touche 2',
     'touche 3',
+    'touche 4',
+    'touche 5',
+    'touche 6',
+    'touche 7',
+    'touche 8',
+    'touche 9',
     'débordement',
     'messagerie',
     'sinon',
@@ -284,9 +452,20 @@ export default function Workspace({
 
       {/* Editor instructions or stats bar */}
       <div className="bg-white/45 backdrop-blur-md border-b border-white/20 py-1.5 px-4 text-[11px] text-slate-600 flex items-center justify-between shrink-0 select-none">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           <span className="bg-white/40 px-2 py-0.5 rounded border border-white/40 font-semibold text-slate-700 shadow-2xs">{nodes.length} Nœuds</span>
           <span className="bg-white/40 px-2 py-0.5 rounded border border-white/40 font-semibold text-slate-700 shadow-2xs">{connections.length} Connexions</span>
+          {nodes.length > 0 && (
+            <button
+              id="btn-auto-layout"
+              onClick={triggerRepulsionAnimation}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-2.5 py-1 rounded-lg text-[9.5px] uppercase tracking-wide transition-all shadow-sm hover:shadow active:scale-95 cursor-pointer flex items-center gap-1 shrink-0 ml-1.5"
+              title="Espacer les nœuds pour dégager le texte des connexions"
+            >
+              <Sparkles size={11} className="animate-pulse" />
+              <span>Espacer Automatiquement</span>
+            </button>
+          )}
         </div>
         <div>
           {drawingConnSourceId ? (
@@ -480,7 +659,7 @@ export default function Workspace({
           {nodes.map(node => {
             const meta = NODE_METADATA[node.type];
             if (!meta) return null;
-            const isSelected = selectedNodeId === node.id;
+            const isSelected = selectedNodeId === node.id || (selectedNodeIds || []).includes(node.id);
             const hasAlert = validationAlerts.some(a => a.nodeId === node.id);
 
             return (

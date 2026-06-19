@@ -31,6 +31,7 @@ export default function App() {
   
   // Selected visual node
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   
   // Main Project State holding everything
   const [project, setProject] = useState<TelecomProject>(() => JSON.parse(JSON.stringify(INITIAL_DEFAULT_PROJECT)));
@@ -102,12 +103,39 @@ export default function App() {
     
     // Select the new node instantly
     setSelectedNodeId(newNode.id);
+    setSelectedNodeIds([newNode.id]);
   };
 
   const handleUpdateNodeCoords = (id: string, x: number, y: number) => {
     // Avoid re-triggering heavy alerts on minor pixel drag
     setProject(prev => {
       const updatedNodes = prev.nodes.map(n => n.id === id ? { ...n, x, y } : n);
+      const next = { ...prev, nodes: updatedNodes };
+      localStorage.setItem('teleflux_project_save', JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const handleSelectNodes = (ids: string[]) => {
+    setSelectedNodeIds(ids);
+    if (ids.length > 0) {
+      setSelectedNodeId(ids[ids.length - 1]);
+    } else {
+      setSelectedNodeId(null);
+    }
+  };
+
+  const handleUpdateNodesCoords = (updates: { id: string; x: number; y: number }[]) => {
+    // Avoid heavy re-renders during dragging by directly updating coordinate state
+    setProject(prev => {
+      const coordsMap = new Map(updates.map(u => [u.id, u]));
+      const updatedNodes = prev.nodes.map(n => {
+        const u = coordsMap.get(n.id);
+        if (u) {
+          return { ...n, x: u.x, y: u.y };
+        }
+        return n;
+      });
       const next = { ...prev, nodes: updatedNodes };
       localStorage.setItem('teleflux_project_save', JSON.stringify(next));
       return next;
@@ -151,6 +179,7 @@ export default function App() {
     if (selectedNodeId === id) {
       setSelectedNodeId(null);
     }
+    setSelectedNodeIds(prev => prev.filter(selectedId => selectedId !== id));
   };
 
   // Creating reusable template from active node card configuration
@@ -237,6 +266,7 @@ export default function App() {
         const clonedDefault = JSON.parse(JSON.stringify(BLANK_PROJECT));
         setProject(clonedDefault);
         setSelectedNodeId(null);
+        setSelectedNodeIds([]);
         saveProjectToLocalStorage(clonedDefault);
         setModalConfig(null);
       }
@@ -256,6 +286,7 @@ export default function App() {
         const clonedDemo = JSON.parse(JSON.stringify(INITIAL_DEFAULT_PROJECT));
         setProject(clonedDemo);
         setSelectedNodeId(null);
+        setSelectedNodeIds([]);
         saveProjectToLocalStorage(clonedDemo);
         setModalConfig(null);
       }
@@ -439,8 +470,11 @@ export default function App() {
               nodes={project.nodes}
               connections={project.connections}
               selectedNodeId={selectedNodeId}
+              selectedNodeIds={selectedNodeIds}
               onSelectNode={setSelectedNodeId}
+              onSelectNodes={handleSelectNodes}
               onUpdateNodeCoords={handleUpdateNodeCoords}
+              onUpdateNodesCoords={handleUpdateNodesCoords}
               onDeleteNode={handleDeleteNode}
               onAddConnection={handleAddConnection}
               onDeleteConnection={handleDeleteConnection}
