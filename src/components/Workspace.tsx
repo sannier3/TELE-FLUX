@@ -67,6 +67,12 @@ export default function Workspace({
   const [drawingConnSourceId, setDrawingConnSourceId] = useState<string | null>(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
 
+  // States for standard drag multiselect box (Windows style)
+  const [selectionBoxStart, setSelectionBoxStart] = useState<{ x: number; y: number } | null>(null);
+  const [selectionBoxCurrent, setSelectionBoxCurrent] = useState<{ x: number; y: number } | null>(null);
+  const [initialSelectedIdsAtBoxStart, setInitialSelectedIdsAtBoxStart] = useState<string[]>([]);
+  const isSelectionBoxDragging = useRef(false);
+
   // Handle keys like Escape to abort connection drawing
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -79,6 +85,11 @@ export default function Workspace({
   }, []);
 
   const handleWorkspaceClick = (e: React.MouseEvent) => {
+    if (isSelectionBoxDragging.current) {
+      isSelectionBoxDragging.current = false;
+      return;
+    }
+
     if (
       e.target === containerRef.current || 
       (e.target as HTMLElement).id === 'grid-svg' || 
@@ -90,6 +101,32 @@ export default function Workspace({
         onSelectNode(null);
       }
       setDrawingConnSourceId(null);
+    }
+  };
+
+  const handleContainerMouseDown = (e: React.MouseEvent) => {
+    const isBg = e.target === containerRef.current || 
+                 (e.target as HTMLElement).id === 'grid-svg' || 
+                 (e.target as HTMLElement).id === 'grid-canvas-stage';
+    if (!isBg) return;
+
+    if (drawingConnSourceId) return;
+
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left + containerRef.current.scrollLeft;
+    const mouseY = e.clientY - rect.top + containerRef.current.scrollTop;
+
+    setSelectionBoxStart({ x: mouseX, y: mouseY });
+    setSelectionBoxCurrent({ x: mouseX, y: mouseY });
+    isSelectionBoxDragging.current = false;
+
+    const isShiftPressed = e.shiftKey || e.ctrlKey || e.metaKey;
+    const currentSelected = [...selectedNodeIds];
+    setInitialSelectedIdsAtBoxStart(isShiftPressed ? currentSelected : []);
+
+    if (!isShiftPressed && onSelectNodes) {
+      onSelectNodes([]);
     }
   };
 
@@ -178,7 +215,45 @@ export default function Workspace({
       }
     }
 
-    // 2. Handle connection line drawing
+    // 2. Handle selection box dragging (Windows style)
+    if (selectionBoxStart) {
+      setSelectionBoxCurrent({ x: mouseX, y: mouseY });
+
+      const dx = Math.abs(mouseX - selectionBoxStart.x);
+      const dy = Math.abs(mouseY - selectionBoxStart.y);
+      if (dx > 5 || dy > 5) {
+        isSelectionBoxDragging.current = true;
+      }
+
+      const x1 = Math.min(selectionBoxStart.x, mouseX);
+      const x2 = Math.max(selectionBoxStart.x, mouseX);
+      const y1 = Math.min(selectionBoxStart.y, mouseY);
+      const y2 = Math.max(selectionBoxStart.y, mouseY);
+
+      // Node size representation: Width = 190, Height = 100
+      const intersectedNodeIds: string[] = [];
+      nodes.forEach(node => {
+        const nodeLeft = node.x;
+        const nodeRight = node.x + 190;
+        const nodeTop = node.y;
+        const nodeBottom = node.y + 100;
+
+        const intersects = !(nodeLeft > x2 || nodeRight < x1 || nodeTop > y2 || nodeBottom < y1);
+        if (intersects) {
+          intersectedNodeIds.push(node.id);
+        }
+      });
+
+      if (onSelectNodes) {
+        const updatedSelection = new Set([...initialSelectedIdsAtBoxStart]);
+        intersectedNodeIds.forEach(id => {
+          updatedSelection.add(id);
+        });
+        onSelectNodes(Array.from(updatedSelection));
+      }
+    }
+
+    // 3. Handle connection line drawing
     if (drawingConnSourceId) {
       setMousePos({ x: mouseX, y: mouseY });
     }
@@ -186,6 +261,9 @@ export default function Workspace({
 
   const handleWorkspaceMouseUp = () => {
     setDraggingNodeId(null);
+    setSelectionBoxStart(null);
+    setSelectionBoxCurrent(null);
+    setInitialSelectedIdsAtBoxStart([]);
   };
 
   const triggerRepulsionAnimation = () => {
@@ -423,7 +501,12 @@ export default function Workspace({
     'débordement',
     'messagerie',
     'sinon',
-    'renvoi direct'
+    'renvoi direct',
+    'renvoi manuel',
+    'urgence / secours',
+    'fermeture exceptionnelle',
+    'renvoi sur non-réponse',
+    'renvoi sur indisponibilité'
   ];
 
   return (
@@ -481,6 +564,7 @@ export default function Workspace({
       {/* Main Spacious Canvas container scroll overflow */}
       <div
         ref={containerRef}
+        onMouseDown={handleContainerMouseDown}
         onMouseMove={handleWorkspaceMouseMove}
         onMouseUp={handleWorkspaceMouseUp}
         onClick={handleWorkspaceClick}
@@ -611,6 +695,27 @@ export default function Workspace({
               );
             })}
           </svg>
+
+          {/* Visual selection box for Windows style multiselect */}
+          {selectionBoxStart && selectionBoxCurrent && (
+            (() => {
+              const x = Math.min(selectionBoxStart.x, selectionBoxCurrent.x);
+              const y = Math.min(selectionBoxStart.y, selectionBoxCurrent.y);
+              const w = Math.abs(selectionBoxStart.x - selectionBoxCurrent.x);
+              const h = Math.abs(selectionBoxStart.y - selectionBoxCurrent.y);
+              return (
+                <div 
+                  className="absolute bg-blue-550/15 border border-blue-500 rounded pointer-events-none z-50 shadow-xs"
+                  style={{
+                    left: x,
+                    top: y,
+                    width: w,
+                    height: h,
+                  }}
+                />
+              );
+            })()
+          )}
 
           {/* Connection Labels Badges overlaid as HTML elements for better text display and form select option inputs */}
           {connections.map(conn => {
