@@ -18,8 +18,8 @@ export default function App() {
   // Navigation tabs view: 'editor' | 'data' | 'preview'
   const [activeTab, setActiveTab] = useState<'editor' | 'data' | 'preview'>('editor');
   
-  // Palette collapsible state (hidden by default) and Workspace Fullscreen state
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  // Palette collapsible state (open by default) and Workspace Fullscreen state
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   
   // Custom styled React Modal Dialog configuration state
