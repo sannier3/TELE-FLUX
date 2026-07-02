@@ -95,6 +95,11 @@ export interface CallNode {
     headsetConnection?: string;
     dectBaseModel?: string;
     dectHandsetModel?: string;
+
+    // Advanced Opening Hours & Voicemail Text requested by user
+    timeSchedules?: { days: string[]; start: string; end: string }[];
+    voicemailText?: string;
+    showVoicemailTextOnNode?: boolean;
   };
 }
 
@@ -103,6 +108,7 @@ export interface Connection {
   sourceId: string;
   targetId: string;
   label: string; // e.g., "si occupé", "hors horaires", "appel entrant", etc.
+  labels?: string[]; // For multiple connection names / options per connection
 }
 
 export interface DirectoryUser {

@@ -45,6 +45,7 @@ function FlowchartReadonlyVisual({ project, showDownload = false }: { project: T
 
   const nodes = project.nodes;
   const connections = project.connections;
+  const isVertical = layoutMode === 'auto-vertical';
 
   // 1. Group nodes into independent connected subgraphs (forest components) using undirected adjacency
   const visited = new Set<string>();
@@ -209,6 +210,169 @@ function FlowchartReadonlyVisual({ project, showDownload = false }: { project: T
   const width = Math.max(250, rawMaxX - rawMinX + (padding * 2));
   const height = Math.max(150, rawMaxY - rawMinY + (padding * 2));
 
+  // Pre-calculate positions of connection labels to avoid overlap in the print/readonly preview
+  const resolvedLabels = React.useMemo(() => {
+    // 1. Gather default coordinates & dimensions for all labels
+    const rawLabels = connections.map(conn => {
+      const src = nodes.find(n => n.id === conn.sourceId);
+      const tgt = nodes.find(n => n.id === conn.targetId);
+      if (!src || !tgt) return null;
+
+      const srcCoord = computedCoords[src.id];
+      const tgtCoord = computedCoords[tgt.id];
+      if (!srcCoord || !tgtCoord) return null;
+
+      const startX = isVertical ? srcCoord.x + (nodeWidth / 2) : srcCoord.x + nodeWidth;
+      const startY = isVertical ? srcCoord.y + nodeHeight : srcCoord.y + (nodeHeight / 2);
+      
+      const endX = isVertical ? tgtCoord.x + (nodeWidth / 2) : tgtCoord.x;
+      const endY = isVertical ? tgtCoord.y : tgtCoord.y + (nodeHeight / 2);
+
+      let midX = 0;
+      let midY = 0;
+
+      if (isVertical) {
+        const dy = Math.max(50, Math.abs(endY - startY) * 0.45);
+        const t = 0.5;
+        midX = (1 - t) * (1 - t) * (1 - t) * startX + 3 * (1 - t) * (1 - t) * t * startX + 3 * (1 - t) * t * t * endX + t * t * t * endX;
+        midY = (1 - t) * (1 - t) * (1 - t) * startY + 3 * (1 - t) * (1 - t) * t * (startY + dy) + 3 * (1 - t) * t * t * (endY - dy) + t * t * t * endY;
+      } else {
+        const dx = Math.max(70, Math.abs(endX - startX) * 0.45);
+        const t = 0.5;
+        midX = (1 - t) * (1 - t) * (1 - t) * startX + 3 * (1 - t) * (1 - t) * t * (startX + dx) + 3 * (1 - t) * t * t * (endX - dx) + t * t * t * endX;
+        midY = (1 - t) * (1 - t) * (1 - t) * startY + 3 * (1 - t) * (1 - t) * t * startY + 3 * (1 - t) * t * t * endY + t * t * t * endY;
+      }
+
+      const textLen = conn.label ? conn.label.length : 5;
+      const labelW = (textLen * 8.4) + 16;
+      const labelH = 20;
+
+      return {
+        id: conn.id,
+        x: midX,
+        y: midY,
+        w: labelW,
+        h: labelH,
+        origX: midX,
+        origY: midY,
+        connection: conn,
+        startX,
+        startY,
+        endX,
+        endY
+      };
+    }).filter(Boolean) as {
+      id: string;
+      x: number;
+      y: number;
+      w: number;
+      h: number;
+      origX: number;
+      origY: number;
+      connection: Connection;
+      startX: number;
+      startY: number;
+      endX: number;
+      endY: number;
+    }[];
+
+    // 2. Map nodes as obstacles
+    const nodeObstacles = Object.entries(computedCoords).map(([id, coord]) => ({
+      x: coord.x,
+      y: coord.y,
+      w: nodeWidth,
+      h: nodeHeight
+    }));
+
+    // 3. Resolve overlaps
+    const resolvedCoords = rawLabels.map(l => ({ ...l }));
+    const iterations = 35;
+
+    for (let iter = 0; iter < iterations; iter++) {
+      let moved = false;
+
+      // Resolve with other labels
+      for (let i = 0; i < resolvedCoords.length; i++) {
+        for (let j = i + 1; j < resolvedCoords.length; j++) {
+          const l1 = resolvedCoords[i];
+          const l2 = resolvedCoords[j];
+
+          const dx = l1.x - l2.x;
+          const dy = l1.y - l2.y;
+          const minD_X = (l1.w + l2.w) / 2 + 12;
+          const minD_Y = (l1.h + l2.h) / 2 + 8;
+
+          if (Math.abs(dx) < minD_X && Math.abs(dy) < minD_Y) {
+            moved = true;
+            const overlapY = minD_Y - Math.abs(dy);
+            const overlapX = minD_X - Math.abs(dx);
+
+            if (overlapY < overlapX * 1.5) {
+              const pushY = (overlapY / 2) + 1;
+              const signY = dy >= 0 ? 1 : -1;
+              l1.y += pushY * signY;
+              l2.y -= pushY * signY;
+            } else {
+              const pushX = (overlapX / 2) + 1;
+              const signX = dx >= 0 ? 1 : -1;
+              l1.x += pushX * signX;
+              l2.x -= pushX * signX;
+            }
+          }
+        }
+      }
+
+      // Resolve with node obstacles
+      for (let i = 0; i < resolvedCoords.length; i++) {
+        const l = resolvedCoords[i];
+        for (const obs of nodeObstacles) {
+          const safetyX = 16;
+          const safetyY = 12;
+
+          const lLeft = l.x - l.w / 2;
+          const lRight = l.x + l.w / 2;
+          const lTop = l.y - l.h / 2;
+          const lBot = l.y + l.h / 2;
+
+          const oLeft = obs.x;
+          const oRight = obs.x + obs.w;
+          const oTop = obs.y;
+          const oBot = obs.y + obs.h;
+
+          const overlapsX = lRight > oLeft - safetyX && lLeft < oRight + safetyX;
+          const overlapsY = lBot > oTop - safetyY && lTop < oBot + safetyY;
+
+          if (overlapsX && overlapsY) {
+            moved = true;
+            const pushTop = oTop - safetyY - lBot;
+            const pushBot = oBot + safetyY - lTop;
+            const pushLeft = oLeft - safetyX - lRight;
+            const pushRight = oRight + safetyX - lLeft;
+
+            const options = [
+              { axis: 'y', val: pushTop },
+              { axis: 'y', val: pushBot },
+              { axis: 'x', val: pushLeft },
+              { axis: 'x', val: pushRight }
+            ];
+            options.sort((a, b) => Math.abs(a.val) - Math.abs(b.val));
+            const best = options[0];
+
+            if (best.axis === 'y') {
+              l.y += best.val;
+            } else {
+              l.x += best.val;
+            }
+          }
+        }
+      }
+
+      if (!moved) break;
+    }
+
+    return resolvedCoords;
+  }, [connections, nodes, computedCoords, isVertical, nodeWidth, nodeHeight]);
+
   // High quality matching HEX colors for SVG elements matching the telecom themes
   const getColorScheme = (color: string) => {
     switch (color) {
@@ -242,7 +406,7 @@ function FlowchartReadonlyVisual({ project, showDownload = false }: { project: T
     }
   };
 
-  const isVertical = layoutMode === 'auto-vertical';
+  // isVertical is declared at the top of the component functions
 
   const handleDownloadSVG = () => {
     try {
@@ -306,9 +470,11 @@ function FlowchartReadonlyVisual({ project, showDownload = false }: { project: T
       const svgUrl = URL.createObjectURL(svgBlob);
       
       const img = new window.Image();
+      const scale = 5.0; // Dynamic ultra-crisp resolution scale
+      img.width = width * scale;
+      img.height = height * scale;
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const scale = 3.5; // High definition scaling for crystal clear rendering
         canvas.width = width * scale;
         canvas.height = height * scale;
         
@@ -318,7 +484,7 @@ function FlowchartReadonlyVisual({ project, showDownload = false }: { project: T
           ctx.fillRect(0, 0, canvas.width, canvas.height);
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
           
-          const pngUrl = canvas.toDataURL('image/png');
+          const pngUrl = canvas.toDataURL('image/png', 1.0);
           const downloadLink = document.createElement('a');
           downloadLink.href = pngUrl;
           const safeName = (project.projectName || 'telecom').toLowerCase().replace(/[^a-z0-9]+/g, '_');
@@ -433,7 +599,7 @@ function FlowchartReadonlyVisual({ project, showDownload = false }: { project: T
           ref={svgRef}
           viewBox={`${minX} ${minY} ${width} ${height}`} 
           className="w-full h-auto min-w-[900px]"
-          style={{ maxHeight: '650px' }}
+          style={{ maxHeight: 'none' }}
         >
           <defs>
             <marker
@@ -466,44 +632,22 @@ function FlowchartReadonlyVisual({ project, showDownload = false }: { project: T
           <rect x={minX} y={minY} width={width} height={height} fill="url(#grid-readonly-new)" />
 
           {/* Render connections curves with direction-dependent exit offsets */}
-          {connections.map(conn => {
-            const src = nodes.find(n => n.id === conn.sourceId);
-            const tgt = nodes.find(n => n.id === conn.targetId);
-            if (!src || !tgt) return null;
-
-            const srcCoord = computedCoords[src.id];
-            const tgtCoord = computedCoords[tgt.id];
-            if (!srcCoord || !tgtCoord) return null;
-
-            // Connection exit and entry anchors change depending on vertical/horizontal orientation
-            const startX = isVertical ? srcCoord.x + (nodeWidth / 2) : srcCoord.x + nodeWidth;
-            const startY = isVertical ? srcCoord.y + nodeHeight : srcCoord.y + (nodeHeight / 2);
-            
-            const endX = isVertical ? tgtCoord.x + (nodeWidth / 2) : tgtCoord.x;
-            const endY = isVertical ? tgtCoord.y : tgtCoord.y + (nodeHeight / 2);
-
+          {resolvedLabels.map(l => {
+            const conn = l.connection;
             let pathD = '';
-            let midX = 0;
-            let midY = 0;
-
             if (isVertical) {
-              const dy = Math.max(50, Math.abs(endY - startY) * 0.45);
-              pathD = `M ${startX} ${startY} C ${startX} ${startY + dy}, ${endX} ${endY - dy}, ${endX} ${endY}`;
-              
-              const t = 0.5;
-              midX = (1 - t) * (1 - t) * (1 - t) * startX + 3 * (1 - t) * (1 - t) * t * startX + 3 * (1 - t) * t * t * endX + t * t * t * endX;
-              midY = (1 - t) * (1 - t) * (1 - t) * startY + 3 * (1 - t) * (1 - t) * t * (startY + dy) + 3 * (1 - t) * t * t * (endY - dy) + t * t * t * endY;
+              const dy = Math.max(50, Math.abs(l.endY - l.startY) * 0.45);
+              pathD = `M ${l.startX} ${l.startY} C ${l.startX} ${l.startY + dy}, ${l.endX} ${l.endY - dy}, ${l.endX} ${l.endY}`;
             } else {
-              const dx = Math.max(70, Math.abs(endX - startX) * 0.45);
-              pathD = `M ${startX} ${startY} C ${startX + dx} ${startY}, ${endX - dx} ${endY}, ${endX} ${endY}`;
-              
-              const t = 0.5;
-              midX = (1 - t) * (1 - t) * (1 - t) * startX + 3 * (1 - t) * (1 - t) * t * (startX + dx) + 3 * (1 - t) * t * t * (endX - dx) + t * t * t * endX;
-              midY = (1 - t) * (1 - t) * (1 - t) * startY + 3 * (1 - t) * (1 - t) * t * startY + 3 * (1 - t) * t * t * endY + t * t * t * endY;
+              const dx = Math.max(70, Math.abs(l.endX - l.startX) * 0.45);
+              pathD = `M ${l.startX} ${l.startY} C ${l.startX + dx} ${l.startY}, ${l.endX - dx} ${l.endY}, ${l.endX} ${l.endY}`;
             }
+
+            const dist = Math.sqrt((l.x - l.origX) ** 2 + (l.y - l.origY) ** 2);
 
             return (
               <g key={`readonly-conn-${conn.id}`}>
+                {/* Visual connection line */}
                 <path
                   d={pathD}
                   fill="none"
@@ -512,8 +656,24 @@ function FlowchartReadonlyVisual({ project, showDownload = false }: { project: T
                   markerEnd="url(#arrow-readonly)"
                   markerStart="url(#dot-readonly)"
                 />
+
+                {/* Draw high-craft leash pointer if the label has been relocated to prevent overlapping */}
+                {conn.label && dist > 8 && (
+                  <line
+                    x1={l.origX}
+                    y1={l.origY}
+                    x2={l.x}
+                    y2={l.y}
+                    stroke="#94a3b8"
+                    strokeWidth="1.2"
+                    strokeDasharray="3 3"
+                    className="opacity-70"
+                  />
+                )}
+
+                {/* Label Badge */}
                 {conn.label && (
-                  <g transform={`translate(${midX}, ${midY})`}>
+                  <g transform={`translate(${l.x}, ${l.y})`} className="transition-all duration-205">
                     <rect
                       x={-((conn.label.length * 4.2) + 8)}
                       y={-10}

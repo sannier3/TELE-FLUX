@@ -16,7 +16,8 @@ import {
   Volume2,
   Smartphone,
   PhoneForwarded,
-  ShieldAlert
+  ShieldAlert,
+  Plus
 } from 'lucide-react';
 import { CallNode, ReusableTemplate, NodeType } from '../types';
 import { NODE_METADATA } from '../utils/templates';
@@ -44,6 +45,36 @@ interface PropertyPanelProps {
   onDeleteNode: (id: string) => void;
   onCreateTemplateFromNode: (node: CallNode, templateName: string, templateDesc: string) => void;
 }
+
+const formatTimeSchedulesToString = (schedules: { days: string[]; start: string; end: string }[]): string => {
+  if (!schedules || schedules.length === 0) return 'Fermé';
+  const parts = schedules.map(s => {
+    if (!s.days || s.days.length === 0) return '';
+    const dayMap: { [key: string]: string } = {
+      'Lundi': 'Lu', 'Mardi': 'Ma', 'Mercredi': 'Me', 'Jeudi': 'Je', 'Vendredi': 'Ve', 'Samedi': 'Sa', 'Dimanche': 'Di'
+    };
+    const dayShorts = s.days.map(d => dayMap[d] || d.substring(0, 2));
+    
+    const allWeekdays = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'];
+    const allWeek = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+    
+    let daysStr = '';
+    const hasAllWeekdays = allWeekdays.every(d => s.days.includes(d)) && s.days.length === 5;
+    const hasAllWeek = allWeek.every(d => s.days.includes(d)) && s.days.length === 7;
+    
+    if (hasAllWeek) {
+      daysStr = 'Tous les jours';
+    } else if (hasAllWeekdays) {
+      daysStr = 'Lu-Ve';
+    } else {
+      daysStr = dayShorts.join(',');
+    }
+    
+    return `${daysStr}: ${s.start || '00:00'}-${s.end || '00:00'}`;
+  }).filter(Boolean);
+  
+  return parts.length > 0 ? parts.join(' ; ') : 'Fermé';
+};
 
 export default function PropertyPanel({
   selectedNodeId,
@@ -837,49 +868,214 @@ export default function PropertyPanel({
               <Clock size={13} className="text-indigo-600" />
               Saisie du Calendrier / Plages Horaires
             </h4>
-            
-            <div className="space-y-1">
-              <label className="text-[10px] block text-slate-505 font-bold uppercase">Format Plage Horaires</label>
-              <input
-                id="prop-node-timeschedule"
-                type="text"
-                value={localProps.timeSchedule || ''}
-                onChange={(e) => handlePropertyChange('timeSchedule', e.target.value)}
-                placeholder="ex: Lundi,Mardi 08:30-12:00, 14:00-18:00"
-                className="w-full border border-white/40 rounded px-2 py-1 focus:outline-none bg-white/50 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-              />
-              <p className="text-[9px] text-slate-500">Précisez les jours et horaires d'ouverture (calendrier).</p>
-            </div>
 
-            <div className="space-y-1.5">
-              <label className="text-[10px] block text-slate-400 uppercase font-bold">Heures Prédéfinies</label>
-              <div className="grid grid-cols-2 gap-1 text-[9px]">
-                <button
-                  onClick={() => handlePropertyChange('timeSchedule', 'Lundi-Vendredi 08:30-12:00, 14:00-18:00')}
-                  className="bg-white/60 hover:bg-indigo-500/10 border border-white/40 py-1 px-1.5 rounded cursor-pointer text-slate-700 transition-all font-semibold"
-                >
-                  Bureau (Lu-Ve 8h30-18h0)
-                </button>
-                <button
-                  onClick={() => handlePropertyChange('timeSchedule', 'Lundi-Vendredi 09:00-12:30, 14:00-17:30')}
-                  className="bg-white/60 hover:bg-indigo-500/10 border border-white/40 py-1 px-1.5 rounded cursor-pointer text-slate-700 transition-all font-semibold"
-                >
-                  Service (Lu-Ve 9h-17h30)
-                </button>
-                <button
-                  onClick={() => handlePropertyChange('timeSchedule', 'Lundi-Samedi 08:00-19:00')}
-                  className="bg-white/60 hover:bg-indigo-500/10 border border-white/40 py-1 px-1.5 rounded cursor-pointer text-slate-700 transition-all font-semibold"
-                >
-                  Journée Continue
-                </button>
-                <button
-                  onClick={() => handlePropertyChange('timeSchedule', 'Fermé')}
-                  className="bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 py-1 px-1.5 rounded cursor-pointer text-red-700 font-bold transition-all"
-                >
-                  Fermeture Totale
-                </button>
-              </div>
+            {/* Selector to switch between simple string or advanced multi-slot mode */}
+            <div className="flex bg-slate-100 p-0.5 rounded-md border border-slate-200">
+              <button
+                type="button"
+                onClick={() => {
+                  // Switch to simple string mode
+                  if (localProps.timeSchedules) {
+                    handlePropertyChange('timeSchedules', undefined);
+                  }
+                }}
+                className={`flex-1 text-[9px] py-1 font-bold rounded-sm cursor-pointer ${!localProps.timeSchedules ? 'bg-white text-blue-750 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+              >
+                Texte Simple
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  // Initialize multi-slot mode
+                  if (!localProps.timeSchedules || localProps.timeSchedules.length === 0) {
+                    const defaultSchedules = [{ days: ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'], start: '08:30', end: '18:00' }];
+                    handlePropertyChange('timeSchedules', defaultSchedules);
+                    // Also compile to string
+                    const formatted = 'Lu-Ve: 08:30-18:00';
+                    handlePropertyChange('timeSchedule', formatted);
+                  }
+                }}
+                className={`flex-1 text-[9px] py-1 font-bold rounded-sm cursor-pointer ${localProps.timeSchedules ? 'bg-white text-blue-750 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+              >
+                Planificateur Multi-jours
+              </button>
             </div>
+            
+            {!localProps.timeSchedules ? (
+              // Simple mode
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] block text-slate-500 font-bold uppercase">Format Plage Horaires</label>
+                  <input
+                    id="prop-node-timeschedule"
+                    type="text"
+                    value={localProps.timeSchedule || ''}
+                    onChange={(e) => handlePropertyChange('timeSchedule', e.target.value)}
+                    placeholder="ex: Lundi,Mardi 08:30-12:00, 14:00-18:00"
+                    className="w-full border border-white/40 rounded px-2.5 py-1.5 focus:outline-none bg-white/50 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-semibold"
+                  />
+                  <p className="text-[9px] text-slate-500">Précisez les jours et horaires d'ouverture (calendrier).</p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] block text-slate-400 uppercase font-bold">Heures Prédéfinies</label>
+                  <div className="grid grid-cols-2 gap-1 text-[9px]">
+                    <button
+                      type="button"
+                      onClick={() => handlePropertyChange('timeSchedule', 'Lundi-Vendredi 08:30-12:00, 14:00-18:00')}
+                      className="bg-white/60 hover:bg-indigo-500/10 border border-white/40 py-1 px-1.5 rounded cursor-pointer text-slate-700 transition-all font-semibold"
+                    >
+                      Bureau (Lu-Ve 8h30-18h0)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handlePropertyChange('timeSchedule', 'Lundi-Vendredi 09:00-12:30, 14:00-17:30')}
+                      className="bg-white/60 hover:bg-indigo-500/10 border border-white/40 py-1 px-1.5 rounded cursor-pointer text-slate-700 transition-all font-semibold"
+                    >
+                      Service (Lu-Ve 9h-17h30)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handlePropertyChange('timeSchedule', 'Lundi-Samedi 08:00-19:00')}
+                      className="bg-white/60 hover:bg-indigo-500/10 border border-white/40 py-1 px-1.5 rounded cursor-pointer text-slate-700 transition-all font-semibold"
+                    >
+                      Journée Continue
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handlePropertyChange('timeSchedule', 'Fermé')}
+                      className="bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 py-1 px-1.5 rounded cursor-pointer text-red-700 font-bold transition-all"
+                    >
+                      Fermeture Totale
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              // Multi-slot schedule builder
+              <div className="space-y-3 animate-fade-in text-[11px]">
+                {localProps.timeSchedules.map((sched, sIndex) => {
+                  const DAYS_OF_WEEK = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+                  const DAY_SHORTS: { [key: string]: string } = {
+                    'Lundi': 'Lu', 'Mardi': 'Ma', 'Mercredi': 'Me', 'Jeudi': 'Je', 'Vendredi': 'Ve', 'Samedi': 'Sa', 'Dimanche': 'Di'
+                  };
+
+                  const updateSchedules = (updatedSlot: typeof sched) => {
+                    const nextSchedules = [...(localProps.timeSchedules || [])];
+                    nextSchedules[sIndex] = updatedSlot;
+                    handlePropertyChange('timeSchedules', nextSchedules);
+
+                    // Compile to string
+                    const formatted = formatTimeSchedulesToString(nextSchedules);
+                    handlePropertyChange('timeSchedule', formatted);
+                  };
+
+                  const toggleDay = (day: string) => {
+                    const currentDays = sched.days || [];
+                    const nextDays = currentDays.includes(day)
+                      ? currentDays.filter(d => d !== day)
+                      : [...currentDays, day];
+                    
+                    // Sort days to match natural order
+                    const sortedDays = DAYS_OF_WEEK.filter(d => nextDays.includes(d));
+                    updateSchedules({ ...sched, days: sortedDays });
+                  };
+
+                  const removeSlot = () => {
+                    const nextSchedules = (localProps.timeSchedules || []).filter((_, i) => i !== sIndex);
+                    handlePropertyChange('timeSchedules', nextSchedules);
+                    const formatted = formatTimeSchedulesToString(nextSchedules);
+                    handlePropertyChange('timeSchedule', formatted);
+                  };
+
+                  return (
+                    <div key={sIndex} className="p-2.5 bg-white border border-slate-200 rounded-lg shadow-2xs space-y-2 relative">
+                      <div className="flex items-center justify-between">
+                        <span className="font-extrabold text-slate-700 uppercase text-[9px]">Créneau #{sIndex + 1}</span>
+                        {(localProps.timeSchedules || []).length > 1 && (
+                          <button
+                            type="button"
+                            onClick={removeSlot}
+                            className="text-slate-400 hover:text-red-500 p-0.5 rounded transition-all cursor-pointer"
+                            title="Supprimer ce créneau"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Day Pill Buttons */}
+                      <div className="space-y-1">
+                        <label className="text-[9px] text-slate-500 block font-bold uppercase">Jours concernés</label>
+                        <div className="flex flex-wrap gap-1">
+                          {DAYS_OF_WEEK.map(d => {
+                            const isSelected = (sched.days || []).includes(d);
+                            return (
+                              <button
+                                key={d}
+                                type="button"
+                                onClick={() => toggleDay(d)}
+                                className={`w-6 h-6 rounded-full text-[9px] font-bold flex items-center justify-center transition-all cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-indigo-600 text-white shadow-xs'
+                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                }`}
+                                title={d}
+                              >
+                                {DAY_SHORTS[d]}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Time Inputs */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[9px] text-slate-500 block font-bold uppercase">Heure Début</label>
+                          <input
+                            type="time"
+                            value={sched.start || '08:30'}
+                            onChange={(e) => updateSchedules({ ...sched, start: e.target.value })}
+                            className="w-full border border-slate-200 bg-slate-50 rounded px-1.5 py-1 text-xs focus:ring-1 focus:ring-indigo-500 font-semibold text-slate-800"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[9px] text-slate-500 block font-bold uppercase">Heure Fin</label>
+                          <input
+                            type="time"
+                            value={sched.end || '18:00'}
+                            onChange={(e) => updateSchedules({ ...sched, end: e.target.value })}
+                            className="w-full border border-slate-200 bg-slate-50 rounded px-1.5 py-1 text-xs focus:ring-1 focus:ring-indigo-500 font-semibold text-slate-800"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextSchedules = [
+                      ...(localProps.timeSchedules || []),
+                      { days: [], start: '09:00', end: '12:00' }
+                    ];
+                    handlePropertyChange('timeSchedules', nextSchedules);
+                  }}
+                  className="w-full py-1.5 border border-dashed border-indigo-400 bg-indigo-50/20 text-indigo-750 hover:bg-indigo-50 hover:border-indigo-500 text-[10px] font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer"
+                >
+                  <Plus size={11} strokeWidth={2.5} />
+                  <span>Ajouter un autre horaire</span>
+                </button>
+                
+                {/* Result display info string */}
+                <div className="bg-slate-50 p-2 rounded border border-slate-200 text-[9.5px] text-slate-600 space-y-0.5">
+                  <span className="font-extrabold uppercase text-[8px] text-slate-400 block leading-none">Format compilé résultant :</span>
+                  <div className="font-mono font-bold text-slate-800 break-words">{localProps.timeSchedule}</div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -922,6 +1118,32 @@ export default function PropertyPanel({
                 {localProps.audioMessageName || 'standard_pre_decroche.wav'}
               </div>
             </div>
+
+            {node.type === 'voicemail' && (
+              <div className="border-t border-rose-200/50 pt-2.5 mt-2 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="prop-show-voicemail-text" className="text-[10px] text-slate-600 font-bold uppercase cursor-pointer">Afficher le texte sur le nœud</label>
+                  <input
+                    id="prop-show-voicemail-text"
+                    type="checkbox"
+                    checked={localProps.showVoicemailTextOnNode || false}
+                    onChange={(e) => handlePropertyChange('showVoicemailTextOnNode', e.target.checked)}
+                    className="rounded text-rose-600 focus:ring-rose-400 w-4 h-4 cursor-pointer"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] text-slate-500 block font-bold uppercase">Texte à afficher (Sauts de ligne autorisés)</label>
+                  <textarea
+                    id="prop-voicemail-text"
+                    rows={3}
+                    value={localProps.voicemailText || ''}
+                    onChange={(e) => handlePropertyChange('voicemailText', e.target.value)}
+                    placeholder="Saisissez le texte d'annonce ou les instructions..."
+                    className="w-full border border-white/40 bg-white/50 rounded p-2 focus:ring-2 focus:ring-rose-500/10 focus:outline-none text-xs text-slate-800"
+                  />
+                </div>
+              </div>
+            )}
           </div>
         )}
 

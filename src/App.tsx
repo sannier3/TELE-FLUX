@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
 import Workspace from './components/Workspace';
@@ -39,6 +39,84 @@ export default function App() {
   // Flag to display visual Save indicator feedback
   const [unsavedChanges, setUnsavedChanges] = useState(false);
 
+  // History Undo/Redo Stacks
+  const [past, setPast] = useState<TelecomProject[]>([]);
+  const [future, setFuture] = useState<TelecomProject[]>([]);
+
+  // Refs to always have fresh state inside keydown event handler
+  const projectRef = useRef<TelecomProject>(project);
+  const pastRef = useRef<TelecomProject[]>(past);
+  const futureRef = useRef<TelecomProject[]>(future);
+
+  useEffect(() => {
+    projectRef.current = project;
+    pastRef.current = past;
+    futureRef.current = future;
+  }, [project, past, future]);
+
+  const pushToHistory = (stateToRecord: TelecomProject) => {
+    const cloned = JSON.parse(JSON.stringify(stateToRecord));
+    setPast(prev => {
+      const next = [...prev, cloned];
+      if (next.length > 50) next.shift();
+      return next;
+    });
+    setFuture([]);
+  };
+
+  const handleUndo = () => {
+    if (pastRef.current.length === 0) return;
+    const previous = pastRef.current[pastRef.current.length - 1];
+    const newPast = pastRef.current.slice(0, pastRef.current.length - 1);
+
+    setPast(newPast);
+    setFuture(prev => [JSON.parse(JSON.stringify(projectRef.current)), ...prev]);
+    setProject(previous);
+    
+    localStorage.setItem('teleflux_project_save', JSON.stringify(previous));
+    setUnsavedChanges(true);
+  };
+
+  const handleRedo = () => {
+    if (futureRef.current.length === 0) return;
+    const nextState = futureRef.current[0];
+    const newFuture = futureRef.current.slice(1);
+
+    setFuture(newFuture);
+    setPast(prev => [...prev, JSON.parse(JSON.stringify(projectRef.current))]);
+    setProject(nextState);
+
+    localStorage.setItem('teleflux_project_save', JSON.stringify(nextState));
+    setUnsavedChanges(true);
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isZ = e.key.toLowerCase() === 'z';
+      const isY = e.key.toLowerCase() === 'y';
+      const isCtrlOrMeta = e.ctrlKey || e.metaKey;
+
+      if (isCtrlOrMeta) {
+        if (isZ) {
+          e.preventDefault();
+          handleUndo();
+        } else if (isY) {
+          e.preventDefault();
+          handleRedo();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
+  const handleDragStart = () => {
+    pushToHistory(project);
+  };
+
   // 1. Initial hydration from local Storage
   useEffect(() => {
     const saved = localStorage.getItem('teleflux_project_save');
@@ -64,6 +142,15 @@ export default function App() {
 
   const updateProjectState = (updates: Partial<TelecomProject> | ((prev: TelecomProject) => TelecomProject)) => {
     setProject(prev => {
+      // Record current state in history
+      const cloned = JSON.parse(JSON.stringify(prev));
+      setPast(history => {
+        const next = [...history, cloned];
+        if (next.length > 50) next.shift();
+        return next;
+      });
+      setFuture([]);
+
       const next = typeof updates === 'function' ? updates(prev) : { ...prev, ...updates };
       // Auto save
       localStorage.setItem('teleflux_project_save', JSON.stringify(next));
@@ -223,9 +310,9 @@ export default function App() {
     }));
   };
 
-  const handleUpdateConnectionLabel = (id: string, label: string) => {
+  const handleUpdateConnectionLabel = (id: string, label: string, labels?: string[]) => {
     updateProjectState(prev => {
-      const updatedConns = prev.connections.map(c => c.id === id ? { ...c, label } : c);
+      const updatedConns = prev.connections.map(c => c.id === id ? { ...c, label, labels: labels || c.labels } : c);
       return { ...prev, connections: updatedConns };
     });
   };
@@ -264,6 +351,7 @@ export default function App() {
       type: 'danger',
       onConfirm: () => {
         const clonedDefault = JSON.parse(JSON.stringify(BLANK_PROJECT));
+        pushToHistory(project);
         setProject(clonedDefault);
         setSelectedNodeId(null);
         setSelectedNodeIds([]);
@@ -284,6 +372,7 @@ export default function App() {
       type: 'info',
       onConfirm: () => {
         const clonedDemo = JSON.parse(JSON.stringify(INITIAL_DEFAULT_PROJECT));
+        pushToHistory(project);
         setProject(clonedDemo);
         setSelectedNodeId(null);
         setSelectedNodeIds([]);
@@ -321,6 +410,7 @@ export default function App() {
 
   // Global Actions: Import JSON payload
   const handleLoadJSON = (loadedProject: TelecomProject) => {
+    pushToHistory(project);
     setProject(loadedProject);
     setSelectedNodeId(null);
     saveProjectToLocalStorage(loadedProject);
@@ -452,6 +542,10 @@ export default function App() {
         onLoadDemo={handleLoadDemo}
         onSaveLocal={handleForceSave}
         hasUnsavedChanges={unsavedChanges}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        canUndo={past.length > 0}
+        canRedo={future.length > 0}
       />
 
       {/* Main Body View */}
@@ -481,6 +575,7 @@ export default function App() {
               onUpdateConnectionLabel={handleUpdateConnectionLabel}
               validationAlerts={validationAlerts}
               onLoadDemo={handleLoadDemo}
+              onDragStart={handleDragStart}
             />
 
             {/* Right details configuration properties sidebar */}

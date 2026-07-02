@@ -14,7 +14,9 @@ import {
   PhoneCall, 
   UserSquare, 
   Layers,
-  Eye
+  Eye,
+  Undo2,
+  Redo2
 } from 'lucide-react';
 import { TelecomProject } from '../types';
 
@@ -29,6 +31,10 @@ interface HeaderProps {
   onLoadDemo: () => void;
   onSaveLocal: () => void;
   hasUnsavedChanges: boolean;
+  onUndo: () => void;
+  onRedo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
 }
 
 export default function Header({
@@ -41,7 +47,11 @@ export default function Header({
   onReset,
   onLoadDemo,
   onSaveLocal,
-  hasUnsavedChanges
+  hasUnsavedChanges,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo
 }: HeaderProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -182,6 +192,38 @@ export default function Header({
         >
           <Download size={14} />
           <span className="hidden lg:inline">Exporter JSON</span>
+        </button>
+
+        {/* Undo Button */}
+        <button
+          id="btn-undo"
+          onClick={onUndo}
+          disabled={!canUndo}
+          title="Annuler la dernière action (Ctrl+Z)"
+          className={`px-3 py-2 rounded-lg text-xs flex items-center gap-1.5 transition-all border ${
+            canUndo
+              ? 'bg-white/10 text-slate-200 border-white/10 hover:bg-white/20 hover:text-white cursor-pointer shadow-sm'
+              : 'bg-white/5 text-slate-500 border-transparent opacity-40 cursor-not-allowed'
+          }`}
+        >
+          <Undo2 size={14} />
+          <span className="hidden sm:inline">Annuler</span>
+        </button>
+
+        {/* Redo Button */}
+        <button
+          id="btn-redo"
+          onClick={onRedo}
+          disabled={!canRedo}
+          title="Rétablir l'action annulée (Ctrl+Y)"
+          className={`px-3 py-2 rounded-lg text-xs flex items-center gap-1.5 transition-all border ${
+            canRedo
+              ? 'bg-white/10 text-slate-200 border-white/10 hover:bg-white/20 hover:text-white cursor-pointer shadow-sm'
+              : 'bg-white/5 text-slate-500 border-transparent opacity-40 cursor-not-allowed'
+          }`}
+        >
+          <Redo2 size={14} />
+          <span className="hidden sm:inline">Rétablir</span>
         </button>
 
         <button

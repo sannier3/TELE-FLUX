@@ -39,9 +39,10 @@ interface WorkspaceProps {
   onDeleteNode: (id: string) => void;
   onAddConnection: (sourceId: string, targetId: string, label: string) => void;
   onDeleteConnection: (id: string) => void;
-  onUpdateConnectionLabel: (id: string, label: string) => void;
+  onUpdateConnectionLabel: (id: string, label: string, labels?: string[]) => void;
   validationAlerts: { id: string; type: 'error' | 'warning'; message: string; nodeId?: string }[];
   onLoadDemo?: () => void;
+  onDragStart?: () => void;
 }
 
 export default function Workspace({
@@ -58,9 +59,11 @@ export default function Workspace({
   onDeleteConnection,
   onUpdateConnectionLabel,
   validationAlerts,
-  onLoadDemo
+  onLoadDemo,
+  onDragStart
 }: WorkspaceProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const hasMovedNode = useRef(false);
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
   const [initialDragPositions, setInitialDragPositions] = useState<{ [id: string]: { x: number; y: number } }>({});
   const [dragStartMouse, setDragStartMouse] = useState({ x: 0, y: 0 });
@@ -72,6 +75,11 @@ export default function Workspace({
   const [selectionBoxCurrent, setSelectionBoxCurrent] = useState<{ x: number; y: number } | null>(null);
   const [initialSelectedIdsAtBoxStart, setInitialSelectedIdsAtBoxStart] = useState<string[]>([]);
   const isSelectionBoxDragging = useRef(false);
+
+  // Tooltip Prolonged Hover State and Timer
+  const [hoveredNode, setHoveredNode] = useState<CallNode | null>(null);
+  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+  const hoverTimerRef = useRef<any>(null);
 
   // Handle keys like Escape to abort connection drawing
   useEffect(() => {
@@ -102,6 +110,77 @@ export default function Workspace({
       }
       setDrawingConnSourceId(null);
     }
+  };
+
+  const handleNodeMouseEnter = (e: React.MouseEvent, node: CallNode) => {
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    
+    const rect = containerRef.current?.getBoundingClientRect();
+    const x = e.clientX - (rect?.left || 0) + (containerRef.current?.scrollLeft || 0);
+    const y = e.clientY - (rect?.top || 0) + (containerRef.current?.scrollTop || 0);
+    
+    hoverTimerRef.current = setTimeout(() => {
+      setHoveredNode(node);
+      setTooltipPos({ x: x + 15, y: y + 15 });
+    }, 600);
+  };
+
+  const handleNodeMouseMove = (e: React.MouseEvent) => {
+    if (hoveredNode) {
+      const rect = containerRef.current?.getBoundingClientRect();
+      const x = e.clientX - (rect?.left || 0) + (containerRef.current?.scrollLeft || 0);
+      const y = e.clientY - (rect?.top || 0) + (containerRef.current?.scrollTop || 0);
+      setTooltipPos({ x: x + 15, y: y + 15 });
+    }
+  };
+
+  const handleNodeMouseLeave = () => {
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    setHoveredNode(null);
+  };
+
+  const getTooltipContent = (node: CallNode) => {
+    const list: { label: string; value: string }[] = [];
+    const props = node.properties || {};
+    
+    if (node.name) list.push({ label: "Nom du nœud", value: node.name });
+    if (props.description) list.push({ label: "Description", value: props.description });
+    if (props.internalNumber) list.push({ label: "N° Interne", value: props.internalNumber });
+    if (props.number) list.push({ label: "N° Téléphonique", value: props.number });
+    if (props.associatedSda) list.push({ label: "SDA rattachée", value: props.associatedSda });
+    if (props.outgoingCallerId) list.push({ label: "N° Sortant présenté", value: props.outgoingCallerId });
+    if (props.userName) list.push({ label: "Utilisateur", value: props.userName });
+    
+    if (props.phoneBrand) {
+      const modelStr = (!props.phoneModel || props.phoneModel === 'custom_input') ? (props.phoneModelCustom || '') : props.phoneModel;
+      list.push({ label: "Téléphone", value: `${props.phoneBrand} ${modelStr}`.trim() });
+    }
+    if (props.phoneType) list.push({ label: "Type de poste", value: props.phoneType });
+    if (props.macAddress) list.push({ label: "Adresse MAC", value: props.macAddress });
+    if (props.dectBaseModel) list.push({ label: "Base DECT", value: props.dectBaseModel });
+    if (props.dectHandsetModel) list.push({ label: "Combiné DECT", value: props.dectHandsetModel });
+    if (props.hasExtensionModule && props.hasExtensionModule !== 'aucun module d\'extension') {
+      const m = props.extensionModuleModel === 'module personnalisé' ? props.extensionModuleCustom : props.extensionModuleModel;
+      list.push({ label: "Module DSS", value: m || props.hasExtensionModule });
+    }
+    if (props.hasHeadset && props.hasHeadset !== 'aucun casque') {
+      list.push({ label: "Casque", value: `${props.headsetBrand || ''} ${props.headsetModel || ''} (${props.hasHeadset})`.trim() });
+    }
+    
+    if (props.forwardDestination) list.push({ label: "Dest. Renvoi", value: props.forwardDestination });
+    if (props.forwardType && props.forwardType !== 'none') list.push({ label: "Type Renvoi", value: props.forwardType === 'manual' ? 'Manuel' : 'Automatique/Horaire' });
+    if (props.delayBeforeForward) list.push({ label: "Délai / Timeout", value: `${props.delayBeforeForward}s` });
+    if (props.priorityLevel) list.push({ label: "Urgence", value: props.priorityLevel });
+    if (props.nodeStatus) list.push({ label: "Statut courant", value: props.nodeStatusCustom || props.nodeStatus });
+    
+    if (props.audioMessageName) list.push({ label: "Message Audio", value: props.audioMessageName });
+    if (props.voicemailText) list.push({ label: "Texte Messagerie", value: props.voicemailText });
+    if (props.timeSchedule) list.push({ label: "Plages Horaires", value: props.timeSchedule });
+    
+    if (props.clientComment) list.push({ label: "Note Client", value: props.clientComment });
+    if (props.techComment) list.push({ label: "Note Tech", value: props.techComment });
+    
+    return list;
   };
 
   const handleContainerMouseDown = (e: React.MouseEvent) => {
@@ -172,6 +251,7 @@ export default function Workspace({
         }
       });
       setInitialDragPositions(positions);
+      hasMovedNode.current = false;
     }
   };
 
@@ -183,6 +263,12 @@ export default function Workspace({
 
     // 1. Handle node dragging or multi-dragging
     if (draggingNodeId) {
+      if (!hasMovedNode.current) {
+        hasMovedNode.current = true;
+        if (onDragStart) {
+          onDragStart();
+        }
+      }
       const dx = mouseX - dragStartMouse.x;
       const dy = mouseY - dragStartMouse.y;
 
@@ -407,33 +493,185 @@ export default function Workspace({
     setDrawingConnSourceId(null);
   };
 
-  // Node width is stylized as 190, height is 90
+  // Estimate dynamic height of node card for visual connections
+  const getNodeCardHeight = (node: CallNode) => {
+    let base = 110;
+    if (node.type === 'voicemail' && node.properties?.showVoicemailTextOnNode && node.properties?.voicemailText) {
+      const lineCount = node.properties.voicemailText.split('\n').length;
+      base += Math.max(30, lineCount * 12);
+    } else if (node.properties?.description && node.properties.description.length > 25) {
+      base += 15;
+    }
+    return base;
+  };
+
   const getNodeCenter = (nodeId: string) => {
     const node = nodes.find(n => n.id === nodeId);
     if (!node) return { x: 0, y: 0 };
+    const h = getNodeCardHeight(node);
     return {
       x: node.x + 95,
-      y: node.y + 45
+      y: node.y + (h / 2)
     };
   };
 
   const getNodeOutlet = (nodeId: string) => {
     const node = nodes.find(n => n.id === nodeId);
     if (!node) return { x: 0, y: 0 };
+    const h = getNodeCardHeight(node);
     return {
       x: node.x + 190,
-      y: node.y + 45
+      y: node.y + (h / 2)
     };
   };
 
   const getNodeInlet = (nodeId: string) => {
     const node = nodes.find(n => n.id === nodeId);
     if (!node) return { x: 0, y: 0 };
+    const h = getNodeCardHeight(node);
     return {
       x: node.x,
-      y: node.y + 45
+      y: node.y + (h / 2)
     };
   };
+
+  // Pre-calculate positions of connection labels to avoid overlap in the interactive design canvas
+  const resolvedLabels = React.useMemo(() => {
+    // 1. Gather default coordinates & dimensions for all labels
+    const rawLabels = connections.map(conn => {
+      const start = getNodeOutlet(conn.sourceId);
+      const end = getNodeInlet(conn.targetId);
+      if (!start || !end) {
+        return {
+          id: conn.id,
+          x: 0,
+          y: 0,
+          w: 0,
+          h: 0,
+          origX: 0,
+          origY: 0,
+          connection: conn
+        };
+      }
+
+      const dx = Math.max(80, Math.abs(end.x - start.x) * 0.5);
+      const t = 0.5; // mid point parameter
+      const midX = (1 - t) * (1 - t) * (1 - t) * start.x + 3 * (1 - t) * (1 - t) * t * (start.x + dx) + 3 * (1 - t) * t * t * (end.x - dx) + t * t * t * end.x;
+      const midY = (1 - t) * (1 - t) * (1 - t) * start.y + 3 * (1 - t) * (1 - t) * t * start.y + 3 * (1 - t) * t * t * end.y + t * t * t * end.y;
+
+      // Dropdown + action button takes about (textLength * 6.5) + 38 px
+      const textLen = conn.label ? conn.label.length : 5;
+      const labelW = (textLen * 6.5) + 38;
+      const labelH = 26;
+
+      return {
+        id: conn.id,
+        x: midX,
+        y: midY,
+        w: labelW,
+        h: labelH,
+        origX: midX,
+        origY: midY,
+        connection: conn
+      };
+    }).filter(l => l.w > 0);
+
+    // 2. Map nodes as obstacles
+    const nodeObstacles = nodes.map(node => ({
+      x: node.x,
+      y: node.y,
+      w: 190,
+      h: getNodeCardHeight(node)
+    }));
+
+    // 3. Resolve overlaps iteratively
+    const resolvedCoords = rawLabels.map(l => ({ ...l }));
+    const iterations = 35;
+
+    for (let iter = 0; iter < iterations; iter++) {
+      let moved = false;
+
+      // Resolve labels with other labels
+      for (let i = 0; i < resolvedCoords.length; i++) {
+        for (let j = i + 1; j < resolvedCoords.length; j++) {
+          const l1 = resolvedCoords[i];
+          const l2 = resolvedCoords[j];
+
+          const dx = l1.x - l2.x;
+          const dy = l1.y - l2.y;
+          const minD_X = (l1.w + l2.w) / 2 + 12; // with 12px margin
+          const minD_Y = (l1.h + l2.h) / 2 + 8;  // with 8px margin
+
+          if (Math.abs(dx) < minD_X && Math.abs(dy) < minD_Y) {
+            moved = true;
+            const overlapY = minD_Y - Math.abs(dy);
+            const overlapX = minD_X - Math.abs(dx);
+
+            if (overlapY < overlapX * 1.5) {
+              const pushY = (overlapY / 2) + 1;
+              const signY = dy >= 0 ? 1 : -1;
+              l1.y += pushY * signY;
+              l2.y -= pushY * signY;
+            } else {
+              const pushX = (overlapX / 2) + 1;
+              const signX = dx >= 0 ? 1 : -1;
+              l1.x += pushX * signX;
+              l2.x -= pushX * signX;
+            }
+          }
+        }
+      }
+
+      // Resolve labels with node obstacles (so they guide smoothly around content cards)
+      for (let i = 0; i < resolvedCoords.length; i++) {
+        const l = resolvedCoords[i];
+        for (const obs of nodeObstacles) {
+          const safetyX = 14;
+          const safetyY = 10;
+
+          const lLeft = l.x - l.w / 2;
+          const lRight = l.x + l.w / 2;
+          const lTop = l.y - l.h / 2;
+          const lBot = l.y + l.h / 2;
+
+          const oLeft = obs.x;
+          const oRight = obs.x + obs.w;
+          const oTop = obs.y;
+          const oBot = obs.y + obs.h;
+
+          const overlapsX = lRight > oLeft - safetyX && lLeft < oRight + safetyX;
+          const overlapsY = lBot > oTop - safetyY && lTop < oBot + safetyY;
+
+          if (overlapsX && overlapsY) {
+            moved = true;
+            const pushTop = oTop - safetyY - lBot;
+            const pushBot = oBot + safetyY - lTop;
+            const pushLeft = oLeft - safetyX - lRight;
+            const pushRight = oRight + safetyX - lLeft;
+
+            const options = [
+              { axis: 'y', val: pushTop },
+              { axis: 'y', val: pushBot },
+              { axis: 'x', val: pushLeft },
+              { axis: 'x', val: pushRight }
+            ];
+            options.sort((a, b) => Math.abs(a.val) - Math.abs(b.val));
+            const best = options[0];
+
+            if (best.axis === 'y') {
+              l.y += best.val;
+            } else {
+              l.x += best.val;
+            }
+          }
+        }
+      }
+
+      if (!moved) break;
+    }
+
+    return resolvedCoords;
+  }, [connections, nodes]);
 
   const getIcon = (iconName: string, category: string) => {
     const cls = "w-4 h-4";
@@ -699,6 +937,26 @@ export default function Workspace({
                 </g>
               );
             })}
+
+            {/* Draw a subtle indicator pointer / leash for any displaced connection labels */}
+            {resolvedLabels.map(l => {
+              const dist = Math.sqrt((l.x - l.origX) ** 2 + (l.y - l.origY) ** 2);
+              if (dist < 8) return null; // Only draw leash if displaced significantly
+              
+              return (
+                <line
+                  key={`leash-${l.id}`}
+                  x1={l.origX}
+                  y1={l.origY}
+                  x2={l.x}
+                  y2={l.y}
+                  stroke={selectedNodeId === l.connection.sourceId ? '#3b82f6' : '#94a3b8'}
+                  strokeWidth="1.2"
+                  strokeDasharray="3 3"
+                  className="opacity-70 animate-pulse"
+                />
+              );
+            })}
           </svg>
 
           {/* Visual selection box for Windows style multiselect */}
@@ -723,43 +981,72 @@ export default function Workspace({
           )}
 
           {/* Connection Labels Badges overlaid as HTML elements for better text display and form select option inputs */}
-          {connections.map(conn => {
-            const start = getNodeOutlet(conn.sourceId);
-            const end = getNodeInlet(conn.targetId);
-            if (!start || !end) return null;
-
-            // Compute center point of the curve
-            const dx = Math.max(80, Math.abs(end.x - start.x) * 0.5);
-            const t = 0.5; // mid point parameter
-            const midX = (1 - t) * (1 - t) * (1 - t) * start.x + 3 * (1 - t) * (1 - t) * t * (start.x + dx) + 3 * (1 - t) * t * t * (end.x - dx) + t * t * t * end.x;
-            const midY = (1 - t) * (1 - t) * (1 - t) * start.y + 3 * (1 - t) * (1 - t) * t * start.y + 3 * (1 - t) * t * t * end.y + t * t * t * end.y;
+          {resolvedLabels.map(l => {
+            const conn = l.connection;
+            const currentLabels = conn.labels && conn.labels.length > 0 ? conn.labels : [conn.label];
+            
+            const handleUpdateLabelAt = (index: number, value: string) => {
+              const nextLabels = [...currentLabels];
+              nextLabels[index] = value;
+              onUpdateConnectionLabel(conn.id, nextLabels[0], nextLabels);
+            };
+            
+            const handleAddLabel = () => {
+              const nextLabels = [...currentLabels, 'touche 0'];
+              onUpdateConnectionLabel(conn.id, nextLabels[0], nextLabels);
+            };
+            
+            const handleRemoveLabelAt = (index: number) => {
+              if (currentLabels.length <= 1) return;
+              const nextLabels = currentLabels.filter((_, i) => i !== index);
+              onUpdateConnectionLabel(conn.id, nextLabels[0], nextLabels);
+            };
 
             return (
               <div
                 key={`label-${conn.id}`}
-                className="absolute transform -translate-x-1/2 -translate-y-1/2 bg-white border border-slate-300 rounded shadow-sm px-1 py-0.5 z-20 flex items-center gap-1 text-[10px] text-slate-700"
-                style={{ left: midX, top: midY }}
+                className="absolute transform -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-1.5 text-[10px] text-slate-700 transition-all duration-200 select-none"
+                style={{ left: l.x, top: l.y }}
               >
-                <select
-                  value={conn.label}
-                  onChange={(e) => onUpdateConnectionLabel(conn.id, e.target.value)}
-                  className="bg-transparent border-none font-semibold text-[10px] text-teal-800 focus:outline-none cursor-pointer"
-                  id={`select-label-${conn.id}`}
-                >
-                  {CONNECTION_LABEL_PRESETS.map((p, i) => (
-                    <option key={i} value={p}>{p}</option>
+                {/* Horizontal list of active labels as light, pretty borderless pills */}
+                <div className="flex flex-col gap-1 items-center">
+                  {currentLabels.map((lbl, idx) => (
+                    <div key={idx} className="flex items-center gap-1 bg-teal-50/95 backdrop-blur-xs text-teal-900 rounded-full px-2 py-0.5 shadow-sm border border-teal-100 hover:bg-teal-100/95 hover:scale-[1.03] transition-all">
+                      <select
+                        value={lbl}
+                        onChange={(e) => handleUpdateLabelAt(idx, e.target.value)}
+                        className="bg-transparent border-none font-extrabold text-[9px] text-teal-800 focus:outline-none cursor-pointer text-center px-1 appearance-none"
+                        id={`select-label-${conn.id}-${idx}`}
+                      >
+                        {CONNECTION_LABEL_PRESETS.map((p, i) => (
+                          <option key={i} value={p}>{p}</option>
+                        ))}
+                        {!CONNECTION_LABEL_PRESETS.includes(lbl) && (
+                          <option value={lbl}>{lbl}</option>
+                        )}
+                      </select>
+                      
+                      {currentLabels.length > 1 && (
+                        <button
+                          onClick={() => handleRemoveLabelAt(idx)}
+                          className="text-teal-600 hover:text-red-500 p-0.5 rounded-full hover:bg-red-50 transition-colors shrink-0 cursor-pointer"
+                          title="Supprimer ce libellé"
+                        >
+                          <X size={8} strokeWidth={2.5} />
+                        </button>
+                      )}
+                    </div>
                   ))}
-                  {!CONNECTION_LABEL_PRESETS.includes(conn.label) && (
-                    <option value={conn.label}>{conn.label}</option>
-                  )}
-                </select>
+                </div>
+
+                {/* Centered minimal + button to add option */}
                 <button
-                  onClick={() => onDeleteConnection(conn.id)}
-                  className="text-slate-400 hover:text-red-500 hover:bg-slate-100 p-0.5 rounded transition-colors"
-                  title="Supprimer la liaison"
-                  id={`delete-conn-${conn.id}`}
+                  onClick={handleAddLabel}
+                  className="w-5 h-5 flex items-center justify-center bg-blue-50 hover:bg-blue-100 text-blue-600 hover:text-blue-800 rounded-full transition-all shadow-xs cursor-pointer border border-blue-100 hover:scale-110 active:scale-95"
+                  title="Ajouter un autre choix/nom de touche à cette même connexion"
+                  id={`add-label-btn-${conn.id}`}
                 >
-                  <X size={10} />
+                  <Plus size={11} strokeWidth={3} />
                 </button>
               </div>
             );
@@ -777,7 +1064,10 @@ export default function Workspace({
                 id={`node-${node.id}`}
                 key={node.id}
                 onMouseDown={(e) => handleNodeMouseDown(e, node)}
-                className={`absolute w-[190px] h-[100px] flex flex-col rounded-xl glass-node border select-none transition-all ${
+                onMouseEnter={(e) => handleNodeMouseEnter(e, node)}
+                onMouseMove={handleNodeMouseMove}
+                onMouseLeave={handleNodeMouseLeave}
+                className={`absolute w-[190px] min-h-[110px] h-auto flex flex-col rounded-xl glass-node border select-none transition-all pb-1 ${
                   isSelected 
                     ? 'border-blue-500 ring-4 ring-blue-500/10 shadow-xl scale-[1.02]' 
                     : hasAlert
@@ -787,14 +1077,21 @@ export default function Workspace({
                 style={{ left: node.x, top: node.y, zIndex: isSelected ? 30 : 20 }}
               >
                 {/* Node Title header with colored category header bar */}
-                <div className={`px-2.5 py-1.5 rounded-t-xl bg-white/40 border-b border-white/20 flex items-center justify-between drag-handle`}>
+                <div className={`px-2.5 py-1.5 rounded-t-xl bg-white/40 border-b border-white/20 flex items-center justify-between drag-handle gap-1`}>
                   <div className="flex items-center gap-1.5 overflow-hidden">
                     <span className="shrink-0">{getIcon(meta.iconName, meta.category)}</span>
-                    <span className="text-[11px] font-extrabold text-slate-800 truncate" title={node.name}>
+                    <span className="text-[11px] font-extrabold text-slate-800 break-words whitespace-normal leading-tight" title={node.name}>
                       {node.name}
                     </span>
                   </div>
                   
+                  {/* Internal short number badge if available */}
+                  {node.properties?.internalNumber && (
+                    <span className="shrink-0 text-[8.5px] font-mono font-bold bg-slate-200/80 px-1 py-0.5 rounded text-slate-700 hover:bg-slate-300 transition-colors" title={`Numéro interne : ${node.properties.internalNumber}`}>
+                      N°{node.properties.internalNumber}
+                    </span>
+                  )}
+
                   {/* Action buttons on node card */}
                   <div className="flex items-center gap-0.5 shrink-0">
                     <button
@@ -812,38 +1109,54 @@ export default function Workspace({
                 </div>
 
                 {/* Node body displaying current configurations directly inside the flow */}
-                <div className="flex-1 p-2 flex flex-col justify-between text-left relative overflow-hidden bg-white/20 rounded-b-xl">
+                <div className="flex-1 p-2 flex flex-col justify-between text-left relative overflow-hidden bg-white/20 rounded-b-xl gap-1.5">
                   {/* Warning overlay icon if block has warning status */}
                   {hasAlert && (
-                    <div className="absolute right-1 bottom-1 p-0.5 bg-amber-500 text-white rounded-full shadow-sm" title="Problème détecté">
+                    <div className="absolute right-1 bottom-1 p-0.5 bg-amber-500 text-white rounded-full shadow-sm z-10" title="Problème détecté">
                       <AlertTriangle size={10} className="animate-pulse" />
                     </div>
                   )}
 
-                  {/* Primary context text display */}
-                  <div className="text-[10px] text-slate-500 line-clamp-1">
+                  {/* Primary context text display with wrap */}
+                  <div className="text-[10px] text-slate-500 break-words whitespace-normal leading-snug">
                     {node.type === 'sda' || node.type === 'ndi' || node.type === 'nds' ? (
-                      <span className="font-semibold text-slate-800">No: {node.properties.number || 'Non configuré'}</span>
+                      <span className="font-semibold text-slate-800 block">No: {node.properties.number || 'Non configuré'}</span>
                     ) : node.type === 'user_station' ? (
-                      <span className="font-semibold text-slate-800">Poste {node.properties.internalNumber} : {node.properties.userName || node.properties.stationName}</span>
+                      <span className="font-semibold text-slate-800 block">Poste {node.properties.internalNumber} : {node.properties.userName || node.properties.stationName}</span>
+                    ) : node.type === 'switchboard' ? (
+                      <span className="font-semibold text-slate-800 block">Standard: {node.properties.internalNumber || '9'}</span>
                     ) : node.type === 'voicemail' ? (
-                      <span className="font-semibold text-slate-800">Bv: {node.properties.internalNumber || '999'}</span>
+                      <div className="font-semibold text-slate-800 block">
+                        <span>Bv: {node.properties.internalNumber || '999'}</span>
+                        {node.properties.showVoicemailTextOnNode && node.properties.voicemailText && (
+                          <div className="mt-1 p-1 rounded bg-rose-50 border border-rose-100 text-[8.5px] font-normal text-rose-800 break-words whitespace-pre-wrap leading-tight font-sans">
+                            "{node.properties.voicemailText}"
+                          </div>
+                        )}
+                      </div>
                     ) : node.type === 'ivr' ? (
-                      <span className="text-amber-800 font-semibold">{node.properties.audioMessageName || 'SVI par défaut'}</span>
+                      <span className="text-amber-800 font-semibold block">{node.properties.audioMessageName || 'SVI par défaut'}</span>
                     ) : node.type === 'day_night' || node.type === 'time_range' ? (
-                      <span className="text-indigo-800 font-semibold truncate block">{node.properties.timeSchedule || 'Horaires 24h'}</span>
+                      <span className="text-indigo-800 font-semibold block break-words whitespace-normal leading-tight">{node.properties.timeSchedule || 'Horaires 24h'}</span>
                     ) : node.type === 'forward_unconditional' || node.type === 'forward_no_answer' || node.type === 'forward_busy' || node.type === 'transfer' ? (
-                      <span className="text-violet-800 font-semibold">Vers: {node.properties.forwardDestination || 'Inconnu'}</span>
+                      <span className="text-violet-800 font-semibold block">Vers: {node.properties.forwardDestination || 'Inconnu'}</span>
                     ) : node.type === 'mobile_external' ? (
-                      <span className="font-semibold text-slate-800">Mob: {node.properties.number || '06...'}</span>
+                      <span className="font-semibold text-slate-800 block">Mob: {node.properties.number || '06...'}</span>
                     ) : (
-                      <span>{node.properties.description || meta.label}</span>
+                      <span className="block text-slate-700">{node.properties.description || meta.label}</span>
+                    )}
+
+                    {/* Secondary display if description was set */}
+                    {node.properties.description && (
+                      <span className="block text-[8.5px] text-slate-400 italic mt-0.5 break-words whitespace-normal leading-tight">
+                        {node.properties.description}
+                      </span>
                     )}
                   </div>
 
                   {/* Row of badges/indicators for advanced features */}
                   {(node.properties?.nodeStatus || node.properties?.forwardType || node.properties?.keyConfig || node.properties?.targetPlatform) && (
-                    <div className="flex flex-wrap gap-1 mt-1 max-h-[18px] overflow-hidden select-none pointer-events-none">
+                    <div className="flex flex-wrap gap-1 select-none pointer-events-none">
                       {node.properties.nodeStatus && (
                         <span className={`inline-flex items-center gap-0.5 text-[7px] font-black px-1 rounded-xs border leading-tight ${
                           ['disponible', 'ouvert', 'jour'].includes(node.properties.nodeStatus)
@@ -895,22 +1208,22 @@ export default function Workspace({
                   )}
 
                   {/* Secondary small indicators info */}
-                  <div className="flex items-center justify-between text-[9px] text-slate-400">
+                  <div className="flex items-center justify-between text-[9px] text-slate-400 mt-auto pt-1 border-t border-slate-100/50">
                     <span className="truncate bg-white/40 border border-white/40 px-1 py-0.5 rounded text-slate-705 font-medium shadow-2xs">
                       {meta.label}
                     </span>
-                    <span className="italic font-mono text-[8px] opacity-75">
+                    <span className="italic font-mono text-[8px] opacity-75 shrink-0">
                       x:{node.x} y:{node.y}
                     </span>
                   </div>
                 </div>
 
                 {/* VISUAL PORTS */}
-                {/* 1. Receiving Inlet dot on left border (Allows completing a connection line) */}
+                {/* 1. Receiving Inlet dot on left border (Allows completing a connection line) - perfectly centered vertically */}
                 <div
                   id={`inlet-${node.id}`}
                   onClick={(e) => drawingConnSourceId ? completeConnection(e, node.id) : null}
-                  className={`absolute -left-1.5 top-[45px] w-3 h-3 rounded-full border bg-white focus:outline-none transition-all z-35 cursor-pointer ${
+                  className={`absolute -left-1.5 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border bg-white focus:outline-none transition-all z-35 cursor-pointer ${
                     drawingConnSourceId 
                       ? 'border-blue-500 bg-blue-105 ring-4 ring-blue-550/20 animate-pulse scale-125' 
                       : 'border-slate-300 hover:bg-slate-100 hover:border-slate-450 hover:scale-125'
@@ -918,11 +1231,11 @@ export default function Workspace({
                   title={drawingConnSourceId ? "Cliquez pour brancher le commutateur ici" : "Port d'entrée direct d'appels"}
                 />
 
-                {/* 2. Emitting Outlet button/dot on right border (Allows drawing a connection line) */}
+                {/* 2. Emitting Outlet button/dot on right border (Allows drawing a connection line) - perfectly centered vertically */}
                 <button
                   id={`outlet-${node.id}`}
                   onMouseDown={(e) => startDrawingConnection(e, node.id)}
-                  className="absolute -right-1.5 top-[45px] w-3 h-3 rounded-full border border-slate-300 bg-white hover:bg-[#2563eb] hover:border-[#2563eb] hover:scale-125 transition-all z-35 flex items-center justify-center cursor-crosshair group-hover:scale-110"
+                  className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border border-slate-300 bg-white hover:bg-[#2563eb] hover:border-[#2563eb] hover:scale-125 transition-all z-35 flex items-center justify-center cursor-crosshair group-hover:scale-110"
                   title="Faites glisser ou cliquez pour créer une liaison sortante"
                 >
                   <div className="w-1.5 h-1.5 bg-slate-400 rounded-full hover:bg-white" />
@@ -930,6 +1243,26 @@ export default function Workspace({
               </div>
             );
           })}
+
+          {/* Tooltip Prolonged Hover Overlay */}
+          {hoveredNode && (
+            <div
+              className="absolute bg-slate-900/95 backdrop-blur-md border border-slate-750 text-white p-3 rounded-lg shadow-xl text-[10px] max-w-xs space-y-1.5 select-none z-50 pointer-events-none"
+              style={{ left: tooltipPos.x, top: tooltipPos.y }}
+            >
+              <h5 className="font-extrabold text-blue-400 border-b border-slate-800 pb-1 mb-1 text-[11px]">
+                Détails du nœud : {hoveredNode.name}
+              </h5>
+              <div className="grid grid-cols-[85px_1fr] gap-x-2 gap-y-1">
+                {getTooltipContent(hoveredNode).map((item, i) => (
+                  <React.Fragment key={i}>
+                    <span className="text-slate-400 font-bold truncate uppercase text-[8px]">{item.label}</span>
+                    <span className="text-slate-100 break-words whitespace-normal font-medium">{item.value}</span>
+                  </React.Fragment>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
