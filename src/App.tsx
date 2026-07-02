@@ -561,7 +561,7 @@ export default function App() {
             {/* Left toolbox node builder palette with slide transition */}
             <div 
               className={`transition-all duration-300 ease-in-out overflow-hidden flex shrink-0 ${
-                isSidebarOpen && !isFullscreen ? 'w-80 border-r border-slate-200/50' : 'w-0'
+                isSidebarOpen ? 'w-80 border-r border-slate-200/50' : 'w-0'
               }`}
             >
               <Sidebar
@@ -572,20 +572,18 @@ export default function App() {
             </div>
 
             {/* Collapsible toggle handle button in the vertical center of the page */}
-            {!isFullscreen && (
-              <div 
-                className="absolute z-40 top-1/2 -translate-y-1/2 transition-all duration-305 ease-in-out"
-                style={{ left: isSidebarOpen ? '320px' : '0px' }}
+            <div 
+              className="absolute z-40 top-1/2 -translate-y-1/2 transition-all duration-305 ease-in-out"
+              style={{ left: isSidebarOpen ? '320px' : '0px' }}
+            >
+              <button
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                className="w-5 h-16 bg-white hover:bg-slate-50 border-y border-r border-slate-300/80 rounded-r-xl shadow-md flex items-center justify-center text-slate-500 hover:text-blue-600 transition-all cursor-pointer focus:outline-none"
+                title={isSidebarOpen ? "Masquer la palette d'éléments" : "Afficher la palette d'éléments"}
               >
-                <button
-                  onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                  className="w-5 h-16 bg-white hover:bg-slate-50 border-y border-r border-slate-300/80 rounded-r-xl shadow-md flex items-center justify-center text-slate-500 hover:text-blue-600 transition-all cursor-pointer focus:outline-none"
-                  title={isSidebarOpen ? "Masquer la palette d'éléments" : "Afficher la palette d'éléments"}
-                >
-                  {isSidebarOpen ? <ChevronLeft size={14} strokeWidth={3} /> : <ChevronRight size={14} strokeWidth={3} />}
-                </button>
-              </div>
-            )}
+                {isSidebarOpen ? <ChevronLeft size={14} strokeWidth={3} /> : <ChevronRight size={14} strokeWidth={3} />}
+              </button>
+            </div>
 
             {/* Central visual diagram canvas flow */}
             <Workspace
@@ -605,7 +603,15 @@ export default function App() {
               onLoadDemo={handleLoadDemo}
               onDragStart={handleDragStart}
               isFullscreen={isFullscreen}
-              onToggleFullscreen={() => setIsFullscreen(!isFullscreen)}
+              onToggleFullscreen={() => {
+                const nextFullscreen = !isFullscreen;
+                setIsFullscreen(nextFullscreen);
+                if (nextFullscreen) {
+                  setIsSidebarOpen(false);
+                } else {
+                  setIsSidebarOpen(true);
+                }
+              }}
             />
 
             {/* Right details configuration properties sidebar with slide transition */}
