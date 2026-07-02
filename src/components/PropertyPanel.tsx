@@ -17,7 +17,8 @@ import {
   Smartphone,
   PhoneForwarded,
   ShieldAlert,
-  Plus
+  Plus,
+  Settings
 } from 'lucide-react';
 import { CallNode, ReusableTemplate, NodeType } from '../types';
 import { NODE_METADATA } from '../utils/templates';
@@ -1190,6 +1191,59 @@ export default function PropertyPanel({
               placeholder="Paramètres SIP, routage VLAN, Trunking, ou configurations spécifiques du PABX..."
               className="w-full border border-blue-500/20 bg-blue-500/5 rounded px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-700 transition-all text-xs"
             />
+          </div>
+        </div>
+
+        {/* Option d'affichage sur le schéma */}
+        <div className="space-y-2.5 p-3 bg-slate-50 border border-slate-200 rounded-lg">
+          <h4 className="font-bold text-slate-700 text-[11px] uppercase tracking-wider flex items-center gap-1">
+            <Settings size={12} className="text-blue-600" />
+            Visibilité sur la carte
+          </h4>
+          <p className="text-[10px] text-slate-500 leading-tight">
+            Cochez les éléments à masquer pour épurer le schéma :
+          </p>
+
+          <div className="space-y-2 pt-1">
+            <label className="flex items-center gap-2 text-slate-600 font-semibold cursor-pointer text-[11px] hover:text-slate-800">
+              <input
+                type="checkbox"
+                checked={localProps.hidePrimaryDetails || false}
+                onChange={(e) => handlePropertyChange('hidePrimaryDetails', e.target.checked)}
+                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5 cursor-pointer"
+              />
+              <span>Masquer détails principaux (N°, Ext)</span>
+            </label>
+
+            <label className="flex items-center gap-2 text-slate-600 font-semibold cursor-pointer text-[11px] hover:text-slate-800">
+              <input
+                type="checkbox"
+                checked={localProps.hideDescription || false}
+                onChange={(e) => handlePropertyChange('hideDescription', e.target.checked)}
+                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5 cursor-pointer"
+              />
+              <span>Masquer la description</span>
+            </label>
+
+            <label className="flex items-center gap-2 text-slate-600 font-semibold cursor-pointer text-[11px] hover:text-slate-800">
+              <input
+                type="checkbox"
+                checked={localProps.hideBadges || false}
+                onChange={(e) => handlePropertyChange('hideBadges', e.target.checked)}
+                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5 cursor-pointer"
+              />
+              <span>Masquer les badges de statut / touches</span>
+            </label>
+
+            <label className="flex items-center gap-2 text-slate-600 font-semibold cursor-pointer text-[11px] hover:text-slate-800">
+              <input
+                type="checkbox"
+                checked={localProps.hideMetadata || false}
+                onChange={(e) => handlePropertyChange('hideMetadata', e.target.checked)}
+                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5 cursor-pointer"
+              />
+              <span>Masquer le type et coordonnées (x,y)</span>
+            </label>
           </div>
         </div>
 

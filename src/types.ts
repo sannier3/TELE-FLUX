@@ -100,6 +100,12 @@ export interface CallNode {
     timeSchedules?: { days: string[]; start: string; end: string }[];
     voicemailText?: string;
     showVoicemailTextOnNode?: boolean;
+
+    // Optional visual display settings toggles per node
+    hidePrimaryDetails?: boolean;
+    hideDescription?: boolean;
+    hideBadges?: boolean;
+    hideMetadata?: boolean;
   };
 }
 
