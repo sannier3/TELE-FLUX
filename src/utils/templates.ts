@@ -69,6 +69,7 @@ export const DEFAULT_TEMPLATES: ReusableTemplate[] = [
     type: 'call_group',
     properties: {
       delayBeforeForward: 20,
+      internalNumber: '500',
       techComment: 'Groupe de 3 utilisateurs en simultané. Timeout 20 sec.',
       clientComment: 'Fait sonner plusieurs postes en même temps.'
     }
@@ -194,7 +195,7 @@ export const NODE_METADATA: Record<NodeType, {
     borderColor: 'border-yellow-600',
     bgSelected: 'bg-yellow-50',
     iconName: 'users',
-    defaultProps: { stationName: 'Groupe Support', delayBeforeForward: 15, description: 'Sonne en cascade ou en simultané' }
+    defaultProps: { stationName: 'Groupe Support', delayBeforeForward: 15, internalNumber: '500', description: 'Sonne en cascade ou en simultané' }
   },
   queue: {
     label: "File d'attente",
@@ -203,7 +204,7 @@ export const NODE_METADATA: Record<NodeType, {
     borderColor: 'border-orange-500',
     bgSelected: 'bg-orange-50',
     iconName: 'clock',
-    defaultProps: { delayBeforeForward: 60, description: 'File d\'attente musicale (ACD) avec agents connectés' }
+    defaultProps: { delayBeforeForward: 60, internalNumber: '600', description: 'File d\'attente musicale (ACD) avec agents connectés' }
   },
   transfer: {
     label: "Transfert d'appel",

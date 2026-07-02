@@ -26,7 +26,9 @@ import {
   ZoomIn,
   ZoomOut,
   Download,
-  Image
+  Image,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 import { CallNode, Connection, NodeType } from '../types';
 import { NODE_METADATA } from '../utils/templates';
@@ -47,6 +49,8 @@ interface WorkspaceProps {
   validationAlerts: { id: string; type: 'error' | 'warning'; message: string; nodeId?: string }[];
   onLoadDemo?: () => void;
   onDragStart?: () => void;
+  isFullscreen?: boolean;
+  onToggleFullscreen?: () => void;
 }
 
 export default function Workspace({
@@ -64,7 +68,9 @@ export default function Workspace({
   onUpdateConnectionLabel,
   validationAlerts,
   onLoadDemo,
-  onDragStart
+  onDragStart,
+  isFullscreen = false,
+  onToggleFullscreen
 }: WorkspaceProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const hasMovedNode = useRef(false);
@@ -565,9 +571,10 @@ export default function Workspace({
       const midY = (1 - t) * (1 - t) * (1 - t) * start.y + 3 * (1 - t) * (1 - t) * t * start.y + 3 * (1 - t) * t * t * end.y + t * t * t * end.y;
 
       // Dropdown + action button takes about (textLength * 6.5) + 38 px
-      const textLen = conn.label ? conn.label.length : 5;
-      const labelW = (textLen * 6.5) + 38;
-      const labelH = 26;
+      const currentLabels = conn.labels && conn.labels.length > 0 ? conn.labels : [conn.label];
+      const maxTextLen = Math.max(...currentLabels.map(lbl => lbl ? lbl.length : 5));
+      const labelW = (maxTextLen * 6.5) + 38;
+      const labelH = currentLabels.length * 18 + (currentLabels.length - 1) * 4 + 20;
 
       return {
         id: conn.id,
@@ -794,20 +801,6 @@ export default function Workspace({
     try {
       if (nodes.length === 0) return;
 
-      // 1. Compute bounds
-      const computedXs = nodes.map(n => n.x);
-      const computedYs = nodes.map(n => n.y);
-      const rawMinX = Math.min(...computedXs);
-      const rawMinY = Math.min(...computedYs);
-      const rawMaxX = Math.max(...computedXs) + 190;
-      const rawMaxY = Math.max(...computedYs) + 110;
-
-      const padding = 60;
-      const minX = rawMinX - padding;
-      const minY = rawMinY - padding;
-      const width = Math.max(250, rawMaxX - rawMinX + (padding * 2));
-      const height = Math.max(150, rawMaxY - rawMinY + (padding * 2));
-
       // 2. Escape XML helper
       const escapeXml = (unsafe: string) => {
         return unsafe.replace(/[<>&'"]/g, (c) => {
@@ -821,6 +814,123 @@ export default function Workspace({
           }
         });
       };
+
+      const wrapTextWithNewlines = (text: string, maxChars: number): string[] => {
+        if (!text) return [];
+        const sourceLines = text.split('\n');
+        const result: string[] = [];
+        for (const sLine of sourceLines) {
+          if (!sLine.trim()) {
+            result.push('');
+            continue;
+          }
+          const words = sLine.split(/\s+/);
+          let currentLine = '';
+          for (const word of words) {
+            if (!currentLine) {
+              currentLine = word;
+            } else if ((currentLine + ' ' + word).length <= maxChars) {
+              currentLine += ' ' + word;
+            } else {
+              result.push(currentLine);
+              currentLine = word;
+            }
+          }
+          if (currentLine) {
+            result.push(currentLine);
+          }
+        }
+        return result;
+      };
+
+      // 1. Compute bounds with dynamic node heights
+      const computedXs = nodes.map(n => n.x);
+      const computedYs = nodes.map(n => n.y);
+      const rawMinX = Math.min(...computedXs);
+      const rawMinY = Math.min(...computedYs);
+      const rawMaxX = Math.max(...computedXs) + 190;
+
+      // Find actual rawMaxY taking into account dynamic heights of nodes
+      let rawMaxY = Math.max(...computedYs) + 110;
+      nodes.forEach(node => {
+        const titleLines = wrapTextWithNewlines(node.name, 22);
+        let detailLine1 = '';
+        let detailLine2 = '';
+
+        if (!node.properties?.hidePrimaryDetails) {
+          switch (node.type) {
+            case 'ndi':
+            case 'sda':
+            case 'nds':
+              detailLine1 = node.properties?.number ? `Nº: ${node.properties.number}` : 'Nº: Non configuré';
+              break;
+            case 'user_station':
+              detailLine1 = `Poste: ${node.properties?.internalNumber || ''}`;
+              detailLine2 = node.properties?.userName || node.properties?.stationName || '';
+              break;
+            case 'switchboard':
+              detailLine1 = `Standard: ${node.properties?.internalNumber || '9'}`;
+              break;
+            case 'voicemail':
+              detailLine1 = `Bv: ${node.properties?.internalNumber || '999'}`;
+              detailLine2 = node.properties?.voicemailText || node.properties?.audioMessageName || '';
+              break;
+            case 'call_group':
+              detailLine1 = `Gr: ${node.properties?.internalNumber || '500'}`;
+              detailLine2 = node.properties?.stationName || 'Groupe Support';
+              if (node.properties?.delayBeforeForward) {
+                detailLine2 += ` (${node.properties.delayBeforeForward}s)`;
+              }
+              break;
+            case 'queue':
+              detailLine1 = `File: ${node.properties?.internalNumber || '600'}`;
+              detailLine2 = node.properties?.delayBeforeForward ? `Timeout: ${node.properties.delayBeforeForward}s` : 'File d\'attente';
+              break;
+            case 'ivr':
+              detailLine1 = `Menu IVR: ${node.properties?.internalNumber || ''}`;
+              detailLine2 = node.properties?.audioMessageName || '';
+              break;
+            case 'time_range':
+            case 'day_night':
+              detailLine1 = node.properties?.timeSchedule || 'Horaires 24h';
+              break;
+            default:
+              if (node.properties?.number) {
+                detailLine1 = `Nº: ${node.properties.number}`;
+              } else if (node.properties?.internalNumber) {
+                detailLine1 = `Ext: ${node.properties.internalNumber}`;
+              }
+              break;
+          }
+        }
+
+        if (node.properties?.description && !node.properties?.hideDescription) {
+          if (!detailLine1) {
+            detailLine1 = node.properties.description;
+          } else {
+            detailLine2 = node.properties.description;
+          }
+        }
+
+        const d1Lines = wrapTextWithNewlines(detailLine1, 26);
+        const d2Lines = wrapTextWithNewlines(detailLine2, 30);
+
+        let totalTextHeight = titleLines.length * 14;
+        if (d1Lines.length > 0) totalTextHeight += 4 + d1Lines.length * 12;
+        if (d2Lines.length > 0) totalTextHeight += 4 + d2Lines.length * 11;
+
+        const nh = Math.max(110, 46 + totalTextHeight + 24);
+        const bottomEdge = node.y + nh;
+        if (bottomEdge > rawMaxY) {
+          rawMaxY = bottomEdge;
+        }
+      });
+
+      const padding = 60;
+      const minX = rawMinX - padding;
+      const minY = rawMinY - padding;
+      const width = Math.max(250, rawMaxX - rawMinX + (padding * 2));
+      const height = Math.max(150, rawMaxY - rawMinY + (padding * 2));
 
       // 3. SVG Head and Defs
       let svgContent = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" style="background-color: #ffffff;">`;
@@ -851,18 +961,31 @@ export default function Workspace({
 
       // 5. Render connection labels
       resolvedLabels.forEach(label => {
-        if (!label.connection.label) return;
+        const validLabels = ((label.connection.labels && label.connection.labels.length > 0) 
+          ? label.connection.labels 
+          : [label.connection.label]).filter(Boolean) as string[];
+
+        if (validLabels.length === 0) return;
+
         const lx = label.x - minX;
         const ly = label.y - minY;
-        const lw = label.w;
-        const lh = label.h;
+        const pillHeight = 16;
+        const pillGap = 4;
+        const totalHeight = validLabels.length * pillHeight + (validLabels.length - 1) * pillGap;
+        const startY = ly - totalHeight / 2;
 
-        svgContent += `
-          <g>
-            <rect x="${lx - lw/2}" y="${ly - lh/2}" width="${lw}" height="${lh}" rx="4" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" />
-            <text x="${lx}" y="${ly + 3.5}" text-anchor="middle" fill="#334155" font-size="8.5" font-family="monospace, Courier" font-weight="bold">${escapeXml(label.connection.label)}</text>
-          </g>
-        `;
+        const maxLen = Math.max(...validLabels.map(l => l.length));
+        const pillWidth = maxLen * 5.8 + 14;
+
+        validLabels.forEach((lbl, idx) => {
+          const py = startY + idx * (pillHeight + pillGap);
+          svgContent += `
+            <g>
+              <rect x="${lx - pillWidth / 2}" y="${py}" width="${pillWidth}" height="${pillHeight}" rx="4" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2" />
+              <text x="${lx}" y="${py + 11.5}" text-anchor="middle" fill="#0f766e" font-size="8.5" font-family="sans-serif, Arial" font-weight="extrabold">${escapeXml(lbl)}</text>
+            </g>
+          `;
+        });
       });
 
       // 6. Render individual blocks (nodes)
@@ -874,31 +997,9 @@ export default function Workspace({
         const nx = node.x - minX;
         const ny = node.y - minY;
         const nw = 190;
-        const nh = 110;
 
-        // Card base & Decorative left band
-        svgContent += `
-          <g>
-            <rect x="${nx}" y="${ny}" width="${nw}" height="${nh}" rx="12" fill="${scheme.fill}" stroke="${scheme.stroke}" stroke-width="2" />
-            <path d="M ${nx + 1.5} ${ny + 12} A 10.5 10.5 0 0 1 ${nx + 12} ${ny + 1.5} L ${nx + 12} ${ny + 1.5} L ${nx + 12} ${ny + 108.5} L ${nx + 12} ${ny + 108.5} A 10.5 10.5 0 0 1 ${nx + 1.5} ${ny + 98} Z" fill="${scheme.header}" />
-            <text x="${nx + 18}" y="${ny + 22}" fill="${scheme.header}" font-size="9" font-weight="900" font-family="sans-serif, Arial" letter-spacing="0.8">${meta.label.toUpperCase()}</text>
-        `;
-
-        // Extension Badge
-        if (node.properties?.internalNumber && !node.properties?.hidePrimaryDetails) {
-          svgContent += `
-            <g transform="translate(${nx + nw - 10}, ${ny + 16})">
-              <rect x="-62" y="-8" width="62" height="16" rx="4" fill="#e2e8f0" stroke="#cbd5e1" stroke-width="1" />
-              <text x="-31" text-anchor="middle" y="4" fill="#334155" font-size="8.5" font-weight="bold" font-family="monospace, Courier">EXT ${node.properties.internalNumber}</text>
-            </g>
-          `;
-        }
-
-        // Node Title Name
-        const displayName = node.name.length > 22 ? node.name.substring(0, 20) + '...' : node.name;
-        svgContent += `
-            <text x="${nx + 18}" y="${ny + 46}" fill="#0f172a" font-size="12" font-weight="900" font-family="sans-serif, Arial">${escapeXml(displayName)}</text>
-        `;
+        // Compute text lines for layout and height
+        const titleLines = wrapTextWithNewlines(node.name, 22);
 
         // Details construction
         let detailLine1 = '';
@@ -919,8 +1020,19 @@ export default function Workspace({
               detailLine1 = `Standard: ${node.properties?.internalNumber || '9'}`;
               break;
             case 'voicemail':
-              detailLine1 = `Messagerie: ${node.properties?.internalNumber || ''}`;
-              detailLine2 = node.properties?.audioMessageName || '';
+              detailLine1 = `Bv: ${node.properties?.internalNumber || '999'}`;
+              detailLine2 = node.properties?.voicemailText || node.properties?.audioMessageName || '';
+              break;
+            case 'call_group':
+              detailLine1 = `Gr: ${node.properties?.internalNumber || '500'}`;
+              detailLine2 = node.properties?.stationName || 'Groupe Support';
+              if (node.properties?.delayBeforeForward) {
+                detailLine2 += ` (${node.properties.delayBeforeForward}s)`;
+              }
+              break;
+            case 'queue':
+              detailLine1 = `File: ${node.properties?.internalNumber || '600'}`;
+              detailLine2 = node.properties?.delayBeforeForward ? `Timeout: ${node.properties.delayBeforeForward}s` : 'File d\'attente';
               break;
             case 'ivr':
               detailLine1 = `Menu IVR: ${node.properties?.internalNumber || ''}`;
@@ -928,7 +1040,7 @@ export default function Workspace({
               break;
             case 'time_range':
             case 'day_night':
-              detailLine1 = `Horaires: ${node.properties?.timeSchedule || 'Horaires 24h'}`;
+              detailLine1 = node.properties?.timeSchedule || 'Horaires 24h';
               break;
             default:
               if (node.properties?.number) {
@@ -948,24 +1060,67 @@ export default function Workspace({
           }
         }
 
-        if (detailLine1) {
-          const d1 = detailLine1.length > 32 ? detailLine1.substring(0, 30) + '...' : detailLine1;
+        const d1Lines = wrapTextWithNewlines(detailLine1, 26);
+        const d2Lines = wrapTextWithNewlines(detailLine2, 30);
+
+        let totalTextHeight = titleLines.length * 14;
+        if (d1Lines.length > 0) totalTextHeight += 4 + d1Lines.length * 12;
+        if (d2Lines.length > 0) totalTextHeight += 4 + d2Lines.length * 11;
+
+        const nh = Math.max(110, 46 + totalTextHeight + 24);
+
+        // Card base & Decorative left band
+        svgContent += `
+          <g>
+            <rect x="${nx}" y="${ny}" width="${nw}" height="${nh}" rx="12" fill="${scheme.fill}" stroke="${scheme.stroke}" stroke-width="2" />
+            <path d="M ${nx + 1.5} ${ny + 12} A 10.5 10.5 0 0 1 ${nx + 12} ${ny + 1.5} L ${nx + 12} ${ny + 1.5} L ${nx + 12} ${ny + nh - 1.5} L ${nx + 12} ${ny + nh - 1.5} A 10.5 10.5 0 0 1 ${nx + 1.5} ${ny + nh - 12} Z" fill="${scheme.header}" />
+            <text x="${nx + 18}" y="${ny + 22}" fill="${scheme.header}" font-size="9" font-weight="900" font-family="sans-serif, Arial" letter-spacing="0.8">${meta.label.toUpperCase()}</text>
+        `;
+
+        // Extension Badge
+        if (node.properties?.internalNumber && !node.properties?.hidePrimaryDetails) {
           svgContent += `
-            <text x="${nx + 18}" y="${ny + 66}" fill="#334155" font-size="10" font-family="monospace, Courier" font-weight="bold">${escapeXml(d1)}</text>
+            <g transform="translate(${nx + nw - 10}, ${ny + 16})">
+              <rect x="-62" y="-8" width="62" height="16" rx="4" fill="#e2e8f0" stroke="#cbd5e1" stroke-width="1" />
+              <text x="-31" text-anchor="middle" y="4" fill="#334155" font-size="8.5" font-weight="bold" font-family="sans-serif, Arial">N°${node.properties.internalNumber}</text>
+            </g>
           `;
         }
 
-        if (detailLine2) {
-          const d2 = detailLine2.length > 32 ? detailLine2.substring(0, 30) + '...' : detailLine2;
+        // Draw dynamic text lines with perfect offsets
+        let currentY = ny + 46;
+
+        titleLines.forEach((line) => {
           svgContent += `
-            <text x="${nx + 18}" y="${ny + 82}" fill="#475569" font-size="9" font-family="sans-serif, Arial" font-weight="medium">${escapeXml(d2)}</text>
+            <text x="${nx + 18}" y="${currentY}" fill="#0f172a" font-size="12" font-weight="900" font-family="sans-serif, Arial">${escapeXml(line)}</text>
           `;
+          currentY += 14;
+        });
+
+        if (d1Lines.length > 0) {
+          currentY += 4;
+          d1Lines.forEach((line) => {
+            svgContent += `
+              <text x="${nx + 18}" y="${currentY}" fill="#334155" font-size="10" font-family="sans-serif, Arial" font-weight="bold">${escapeXml(line)}</text>
+            `;
+            currentY += 12;
+          });
+        }
+
+        if (d2Lines.length > 0) {
+          currentY += 4;
+          d2Lines.forEach((line) => {
+            svgContent += `
+              <text x="${nx + 18}" y="${currentY}" fill="#475569" font-size="9" font-family="sans-serif, Arial" font-weight="medium">${escapeXml(line)}</text>
+            `;
+            currentY += 11;
+          });
         }
 
         // Bottom type label badge unless hideMetadata
         if (!node.properties?.hideMetadata) {
           svgContent += `
-            <g transform="translate(${nx + 18}, ${ny + 89})">
+            <g transform="translate(${nx + 18}, ${ny + nh - 21})">
               <rect width="90" height="13" rx="3" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="0.5" />
               <text x="6" y="9.5" fill="#64748b" font-size="7.5" font-weight="bold" font-family="sans-serif, Arial">${meta.label.toUpperCase()}</text>
               <text x="164" y="9.5" text-anchor="end" fill="#94a3b8" font-size="7" font-family="monospace, Courier">x:${node.x} y:${node.y}</text>
@@ -1092,6 +1247,23 @@ export default function Workspace({
               Réinit
             </button>
           </div>
+
+          {/* Full Screen toggle button */}
+          {onToggleFullscreen && (
+            <button
+              id="btn-toggle-fullscreen"
+              onClick={onToggleFullscreen}
+              className={`flex items-center gap-1 font-bold px-2.5 py-1 rounded-lg text-[9.5px] uppercase tracking-wide transition-all shadow-3xs hover:shadow-2xs active:scale-95 cursor-pointer border ml-1.5 ${
+                isFullscreen 
+                  ? 'bg-amber-600 hover:bg-amber-700 text-white border-amber-550' 
+                  : 'bg-white/70 hover:bg-slate-50 text-slate-700 border-slate-200/60'
+              }`}
+              title={isFullscreen ? "Quitter le plein écran" : "Afficher la conception en plein écran"}
+            >
+              {isFullscreen ? <Minimize2 size={11} /> : <Maximize2 size={11} />}
+              <span>{isFullscreen ? "Quitter Plein Écran" : "Plein Écran"}</span>
+            </button>
+          )}
         </div>
 
         <div className="flex items-center gap-3.5 flex-wrap">
@@ -1459,6 +1631,23 @@ export default function Workspace({
                             <div className="mt-1 p-1 rounded bg-rose-50 border border-rose-100 text-[8.5px] font-normal text-rose-800 break-words whitespace-pre-wrap leading-tight font-sans">
                               "{node.properties.voicemailText}"
                             </div>
+                          )}
+                        </div>
+                      ) : node.type === 'call_group' ? (
+                        <div className="font-semibold text-slate-800 block">
+                          <span>Gr: {node.properties.internalNumber || 'Non configuré'}</span>
+                          {node.properties.stationName && (
+                            <span className="block text-slate-600 text-[9px] font-medium mt-0.5">{node.properties.stationName}</span>
+                          )}
+                          {node.properties.delayBeforeForward && (
+                            <span className="block text-slate-500 text-[8.5px] font-normal mt-0.5">Timeout: {node.properties.delayBeforeForward}s</span>
+                          )}
+                        </div>
+                      ) : node.type === 'queue' ? (
+                        <div className="font-semibold text-slate-800 block">
+                          <span>File: {node.properties.internalNumber || 'Non configuré'}</span>
+                          {node.properties.delayBeforeForward && (
+                            <span className="block text-slate-500 text-[8.5px] font-normal mt-0.5">Timeout: {node.properties.delayBeforeForward}s</span>
                           )}
                         </div>
                       ) : node.type === 'ivr' ? (

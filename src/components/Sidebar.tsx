@@ -105,7 +105,7 @@ export default function Sidebar({ onAddNode, templates, onApplyTemplate }: Sideb
   };
 
   return (
-    <div className="w-80 border-r border-white/20 bg-white/40 backdrop-blur-md flex flex-col h-full overflow-hidden select-none" id="sidebar-panel">
+    <div className="w-80 bg-white/40 backdrop-blur-md flex flex-col h-full overflow-hidden select-none" id="sidebar-panel">
       {/* Search or Quick note */}
       <div className="p-4 border-b border-white/20 bg-white/30">
         <h3 className="text-sm font-bold text-slate-800 tracking-tight uppercase">Palette d'Éléments</h3>

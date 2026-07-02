@@ -111,7 +111,7 @@ export default function PropertyPanel({
 
   if (!node) {
     return (
-      <div className="w-80 border-l border-white/25 bg-white/30 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center select-none" id="property-panel-empty">
+      <div className="w-80 bg-white/30 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center select-none" id="property-panel-empty">
         <div className="p-4 bg-white/60 backdrop-blur-xs rounded-full border border-white/40 text-slate-400 shadow-sm mb-3">
           <Layers size={36} />
         </div>
@@ -172,7 +172,7 @@ export default function PropertyPanel({
   };
 
   return (
-    <div className="w-80 border-l border-white/20 bg-white/45 backdrop-blur-md flex flex-col h-full overflow-hidden shadow-xl" id="property-panel-active">
+    <div className="w-80 bg-white/45 backdrop-blur-md flex flex-col h-full overflow-hidden" id="property-panel-active">
       {/* Title block */}
       <div className="p-4 border-b border-white/20 bg-white/30 shrink-0 select-none">
         <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 bg-slate-150 text-slate-600 rounded">
@@ -547,6 +547,55 @@ export default function PropertyPanel({
           </div>
         )}
 
+        {/* 3.5 Groupement & File d'attente (Group and Queue) */}
+        {(node.type === 'call_group' || node.type === 'queue') && (
+          <div className="space-y-3.5 p-3 bg-yellow-50/40 rounded-lg border border-yellow-100 font-medium">
+            <h4 className="font-extrabold text-yellow-900 text-xs border-b border-yellow-100 pb-1 flex items-center justify-between">
+              <span>Paramètres du Groupement / File</span>
+              <span className="text-[8px] bg-yellow-600 text-white font-black px-1 rounded">GROUP</span>
+            </h4>
+
+            <div className="space-y-1">
+              <label className="text-[10px] text-slate-500 block font-bold uppercase">N° de Groupement / File (Interne)</label>
+              <input
+                id="prop-node-group-internal-num"
+                type="text"
+                value={localProps.internalNumber || ''}
+                onChange={(e) => handlePropertyChange('internalNumber', e.target.value)}
+                placeholder="ex: 550, 551..."
+                className="w-full border border-slate-300 rounded px-2.5 py-1.5 focus:outline-none bg-white text-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-xs font-semibold"
+              />
+            </div>
+
+            {node.type === 'call_group' && (
+              <div className="space-y-1">
+                <label className="text-[10px] text-slate-500 block uppercase font-bold">Nom du Groupe</label>
+                <input
+                  id="prop-node-group-station-name"
+                  type="text"
+                  value={localProps.stationName || ''}
+                  onChange={(e) => handlePropertyChange('stationName', e.target.value)}
+                  placeholder="ex: Service Commercial"
+                  className="w-full border border-slate-300 rounded px-2.5 py-1.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-xs"
+                />
+              </div>
+            )}
+
+            <div className="space-y-1">
+              <label className="text-[10px] text-slate-500 block font-bold uppercase">DÉLAI AVANT RENVOI / TIMEOUT (s)</label>
+              <input
+                id="prop-node-group-delay"
+                type="number"
+                min="1"
+                max="300"
+                value={localProps.delayBeforeForward || 15}
+                onChange={(e) => handlePropertyChange('delayBeforeForward', parseInt(e.target.value) || 15)}
+                className="w-full border border-slate-300 rounded px-2.5 py-1.5 focus:outline-none bg-white text-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-mono text-xs"
+              />
+            </div>
+          </div>
+        )}
+
         {/* 4. Dynamic Status Configuration System */}
         <div className="space-y-3 p-3 bg-teal-500/5 rounded-lg border border-teal-500/10">
           <h4 className="font-bold text-teal-900 text-xs flex items-center justify-between">
@@ -654,23 +703,8 @@ export default function PropertyPanel({
               </div>
             </div>
 
-            {/* Group/Queue Internal Number */}
-            {(node.type === 'queue' || node.type === 'call_group') && (
-              <div className="space-y-1 mb-2">
-                <label className="text-[10px] text-slate-500 block font-bold uppercase">N° de Groupement / File (Interne)</label>
-                <input
-                  id="prop-node-group-internal-num"
-                  type="text"
-                  value={localProps.internalNumber || ''}
-                  onChange={(e) => handlePropertyChange('internalNumber', e.target.value)}
-                  placeholder="ex: 550, 551..."
-                  className="w-full border border-white/40 rounded px-2 py-1 focus:outline-none bg-white/50 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-850 font-mono text-xs font-semibold"
-                />
-              </div>
-            )}
-
             {/* Delay in seconds before forwarding */}
-            {(node.type === 'forward_no_answer' || node.type === 'queue' || node.type === 'call_group') && (
+            {node.type === 'forward_no_answer' && (
               <div className="space-y-1">
                 <label className="text-[10px] text-slate-500 block font-bold uppercase">DÉLAI AVANT RENVOI / TIMEOUT (s)</label>
                 <input

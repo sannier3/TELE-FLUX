@@ -12,11 +12,15 @@ import DataManagement from './components/DataManagement';
 import PreviewSection from './components/PreviewSection';
 import { TelecomProject, CallNode, Connection, NodeType, PhoneLine, DirectoryUser, ReusableTemplate } from './types';
 import { INITIAL_DEFAULT_PROJECT, BLANK_PROJECT, NODE_METADATA } from './utils/templates';
-import { AlertTriangle, Trash2, CheckCircle, Info, X } from 'lucide-react';
+import { AlertTriangle, Trash2, CheckCircle, Info, X, ChevronLeft, ChevronRight } from 'lucide-react';
 
 export default function App() {
   // Navigation tabs view: 'editor' | 'data' | 'preview'
   const [activeTab, setActiveTab] = useState<'editor' | 'data' | 'preview'>('editor');
+  
+  // Palette collapsible state (hidden by default) and Workspace Fullscreen state
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   
   // Custom styled React Modal Dialog configuration state
   const [modalConfig, setModalConfig] = useState<{
@@ -531,33 +535,57 @@ export default function App() {
   return (
     <div className="h-screen flex flex-col font-sans text-slate-800 antialiased bg-ambient-mesh" id="teleflux-app-root">
       {/* Top Application Header Control Bar */}
-      <Header
-        project={project}
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        onUpdateProjectMeta={handleUpdateProjectMeta}
-        onLoadJSON={handleLoadJSON}
-        onExportJSON={handleExportJSON}
-        onReset={handleResetProject}
-        onLoadDemo={handleLoadDemo}
-        onSaveLocal={handleForceSave}
-        hasUnsavedChanges={unsavedChanges}
-        onUndo={handleUndo}
-        onRedo={handleRedo}
-        canUndo={past.length > 0}
-        canRedo={future.length > 0}
-      />
+      {!isFullscreen && (
+        <Header
+          project={project}
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          onUpdateProjectMeta={handleUpdateProjectMeta}
+          onLoadJSON={handleLoadJSON}
+          onExportJSON={handleExportJSON}
+          onReset={handleResetProject}
+          onLoadDemo={handleLoadDemo}
+          onSaveLocal={handleForceSave}
+          hasUnsavedChanges={unsavedChanges}
+          onUndo={handleUndo}
+          onRedo={handleRedo}
+          canUndo={past.length > 0}
+          canRedo={future.length > 0}
+        />
+      )}
 
       {/* Main Body View */}
-      <div className="flex-1 flex overflow-hidden min-h-0">
+      <div className="flex-1 flex overflow-hidden min-h-0 relative">
         {activeTab === 'editor' && (
           <>
-            {/* Left toolbox node builder palette */}
-            <Sidebar
-              onAddNode={handleAddNode}
-              templates={project.templates}
-              onApplyTemplate={handleApplyTemplate}
-            />
+            {/* Left toolbox node builder palette with slide transition */}
+            <div 
+              className={`transition-all duration-300 ease-in-out overflow-hidden flex shrink-0 ${
+                isSidebarOpen && !isFullscreen ? 'w-80 border-r border-slate-200/50' : 'w-0'
+              }`}
+            >
+              <Sidebar
+                onAddNode={handleAddNode}
+                templates={project.templates}
+                onApplyTemplate={handleApplyTemplate}
+              />
+            </div>
+
+            {/* Collapsible toggle handle button in the vertical center of the page */}
+            {!isFullscreen && (
+              <div 
+                className="absolute z-40 top-1/2 -translate-y-1/2 transition-all duration-305 ease-in-out"
+                style={{ left: isSidebarOpen ? '320px' : '0px' }}
+              >
+                <button
+                  onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                  className="w-5 h-16 bg-white hover:bg-slate-50 border-y border-r border-slate-300/80 rounded-r-xl shadow-md flex items-center justify-center text-slate-500 hover:text-blue-600 transition-all cursor-pointer focus:outline-none"
+                  title={isSidebarOpen ? "Masquer la palette d'éléments" : "Afficher la palette d'éléments"}
+                >
+                  {isSidebarOpen ? <ChevronLeft size={14} strokeWidth={3} /> : <ChevronRight size={14} strokeWidth={3} />}
+                </button>
+              </div>
+            )}
 
             {/* Central visual diagram canvas flow */}
             <Workspace
@@ -576,17 +604,25 @@ export default function App() {
               validationAlerts={validationAlerts}
               onLoadDemo={handleLoadDemo}
               onDragStart={handleDragStart}
+              isFullscreen={isFullscreen}
+              onToggleFullscreen={() => setIsFullscreen(!isFullscreen)}
             />
 
-            {/* Right details configuration properties sidebar */}
-            <PropertyPanel
-              selectedNodeId={selectedNodeId}
-              nodes={project.nodes}
-              onUpdateNodeProperties={handleUpdateNodeProperties}
-              onUpdateNodeName={handleUpdateNodeName}
-              onDeleteNode={handleDeleteNode}
-              onCreateTemplateFromNode={handleCreateTemplateFromNode}
-            />
+            {/* Right details configuration properties sidebar with slide transition */}
+            <div 
+              className={`transition-all duration-300 ease-in-out overflow-hidden flex shrink-0 ${
+                selectedNodeId ? 'w-80 border-l border-slate-200/55 shadow-lg bg-white/45' : 'w-0'
+              }`}
+            >
+              <PropertyPanel
+                selectedNodeId={selectedNodeId}
+                nodes={project.nodes}
+                onUpdateNodeProperties={handleUpdateNodeProperties}
+                onUpdateNodeName={handleUpdateNodeName}
+                onDeleteNode={handleDeleteNode}
+                onCreateTemplateFromNode={handleCreateTemplateFromNode}
+              />
+            </div>
           </>
         )}
 
