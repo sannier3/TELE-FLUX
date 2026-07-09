@@ -1239,6 +1239,30 @@ export default function PropertyPanel({
           </p>
 
           <div className="space-y-2 pt-1">
+            {node.type === 'user_station' && (
+              <>
+                <label className="flex items-center gap-2 text-slate-600 font-semibold cursor-pointer text-[11px] hover:text-slate-800">
+                  <input
+                    type="checkbox"
+                    checked={localProps.hideInternalNumber || false}
+                    onChange={(e) => handlePropertyChange('hideInternalNumber', e.target.checked)}
+                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5 cursor-pointer"
+                  />
+                  <span>Masquer le numéro interne</span>
+                </label>
+
+                <label className="flex items-center gap-2 text-slate-600 font-semibold cursor-pointer text-[11px] hover:text-slate-800">
+                  <input
+                    type="checkbox"
+                    checked={localProps.hideExternalNumber || false}
+                    onChange={(e) => handlePropertyChange('hideExternalNumber', e.target.checked)}
+                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5 cursor-pointer"
+                  />
+                  <span>Masquer la SDA (Numéro externe)</span>
+                </label>
+              </>
+            )}
+
             <label className="flex items-center gap-2 text-slate-600 font-semibold cursor-pointer text-[11px] hover:text-slate-800">
               <input
                 type="checkbox"

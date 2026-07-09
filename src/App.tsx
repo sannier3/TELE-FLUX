@@ -478,7 +478,7 @@ export default function App() {
       }
 
       // 3. User phone station without extension code
-      if (node.type === 'user_station' || node.type === 'switchboard') {
+      if (node.type === 'switchboard') {
         if (!node.properties.internalNumber) {
           alerts.push({
             id: `station-no-ext-${node.id}`,

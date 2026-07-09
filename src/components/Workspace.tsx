@@ -865,8 +865,15 @@ export default function Workspace({
               detailLine1 = node.properties?.number ? `Nº: ${node.properties.number}` : 'Nº: Non configuré';
               break;
             case 'user_station':
-              detailLine1 = `Poste: ${node.properties?.internalNumber || ''}`;
-              detailLine2 = node.properties?.userName || node.properties?.stationName || '';
+              {
+                const showInt = !node.properties?.hideInternalNumber && node.properties?.internalNumber;
+                const showExt = !node.properties?.hideExternalNumber && node.properties?.associatedSda;
+                const parts: string[] = [];
+                if (showInt) parts.push(`Poste: ${node.properties.internalNumber}`);
+                if (showExt) parts.push(`SDA: ${node.properties.associatedSda}`);
+                detailLine1 = parts.join(' / ');
+                detailLine2 = node.properties?.userName || '';
+              }
               break;
             case 'switchboard':
               detailLine1 = `Standard: ${node.properties?.internalNumber || '9'}`;
@@ -1013,8 +1020,15 @@ export default function Workspace({
               detailLine1 = node.properties?.number ? `Nº: ${node.properties.number}` : 'Nº: Non configuré';
               break;
             case 'user_station':
-              detailLine1 = `Poste: ${node.properties?.internalNumber || ''}`;
-              detailLine2 = node.properties?.userName || node.properties?.stationName || '';
+              {
+                const showInt = !node.properties?.hideInternalNumber && node.properties?.internalNumber;
+                const showExt = !node.properties?.hideExternalNumber && node.properties?.associatedSda;
+                const parts: string[] = [];
+                if (showInt) parts.push(`Poste: ${node.properties.internalNumber}`);
+                if (showExt) parts.push(`SDA: ${node.properties.associatedSda}`);
+                detailLine1 = parts.join(' / ');
+                detailLine2 = node.properties?.userName || '';
+              }
               break;
             case 'switchboard':
               detailLine1 = `Standard: ${node.properties?.internalNumber || '9'}`;
@@ -1621,7 +1635,20 @@ export default function Workspace({
                       {node.type === 'sda' || node.type === 'ndi' || node.type === 'nds' ? (
                         <span className="font-semibold text-slate-800 block">No: {node.properties.number || 'Non configuré'}</span>
                       ) : node.type === 'user_station' ? (
-                        <span className="font-semibold text-slate-800 block">Poste {node.properties.internalNumber} : {node.properties.userName || node.properties.stationName}</span>
+                        <span className="font-semibold text-slate-800 block">
+                          {(() => {
+                            const showInt = !node.properties?.hideInternalNumber && node.properties?.internalNumber;
+                            const showExt = !node.properties?.hideExternalNumber && node.properties?.associatedSda;
+                            const parts: string[] = [];
+                            if (showInt) parts.push(`Poste ${node.properties.internalNumber}`);
+                            if (showExt) parts.push(`SDA ${node.properties.associatedSda}`);
+                            let base = parts.join(' / ');
+                            if (node.properties?.userName) {
+                              base = base ? `${base} : ${node.properties.userName}` : node.properties.userName;
+                            }
+                            return base || 'Poste vide';
+                          })()}
+                        </span>
                       ) : node.type === 'switchboard' ? (
                         <span className="font-semibold text-slate-800 block">Standard: {node.properties.internalNumber || '9'}</span>
                       ) : node.type === 'voicemail' ? (

@@ -106,6 +106,8 @@ export interface CallNode {
     hideDescription?: boolean;
     hideBadges?: boolean;
     hideMetadata?: boolean;
+    hideInternalNumber?: boolean;
+    hideExternalNumber?: boolean;
   };
 }
 
