@@ -1303,7 +1303,7 @@ export default function Workspace({
               </button>
               <button
                 onClick={() => exportAsImage('png')}
-                className="bg-indigo-650 hover:bg-indigo-700 text-white font-extrabold px-2.5 py-1 rounded-lg text-[9.5px] transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold px-2.5 py-1 rounded-lg text-[9.5px] transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
                 title="Exporter le schéma au format image PNG haute définition"
               >
                 <Image size={11} />
