@@ -28,7 +28,8 @@ import {
   Download,
   Image,
   Maximize2,
-  Minimize2
+  Minimize2,
+  Edit3
 } from 'lucide-react';
 import { CallNode, Connection, NodeType } from '../types';
 import { NODE_METADATA } from '../utils/templates';
@@ -80,6 +81,10 @@ export default function Workspace({
   const [drawingConnSourceId, setDrawingConnSourceId] = useState<string | null>(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState<number>(1.0);
+
+  // States for custom connection label typing
+  const [editingLabel, setEditingLabel] = useState<{ connId: string; index: number } | null>(null);
+  const [tempLabelValue, setTempLabelValue] = useState("");
 
   // States for standard drag multiselect box (Windows style)
   const [selectionBoxStart, setSelectionBoxStart] = useState<{ x: number; y: number } | null>(null);
@@ -1498,21 +1503,28 @@ export default function Workspace({
             const currentLabels = conn.labels && conn.labels.length > 0 ? conn.labels : [conn.label];
             
             const handleUpdateLabelAt = (index: number, value: string) => {
-              const nextLabels = [...currentLabels];
+              let nextLabels = [...currentLabels];
               nextLabels[index] = value;
-              onUpdateConnectionLabel(conn.id, nextLabels[0], nextLabels);
+              // Clean up any empty strings if there are multiple elements, to avoid empty pills alongside non-empty ones
+              if (nextLabels.length > 1) {
+                nextLabels = nextLabels.filter(lbl => lbl && lbl.trim() !== "");
+              }
+              onUpdateConnectionLabel(conn.id, nextLabels[0] || '', nextLabels);
             };
             
             const handleAddLabel = () => {
-              const nextLabels = [...currentLabels, 'touche 0'];
+              // If the current labels are just empty or single empty label, replace it
+              const hasActualLabels = currentLabels.some(lbl => lbl && lbl.trim() !== "");
+              const nextLabels = hasActualLabels ? [...currentLabels, 'touche 0'] : ['appel direct'];
               onUpdateConnectionLabel(conn.id, nextLabels[0], nextLabels);
             };
             
             const handleRemoveLabelAt = (index: number) => {
-              if (currentLabels.length <= 1) return;
               const nextLabels = currentLabels.filter((_, i) => i !== index);
-              onUpdateConnectionLabel(conn.id, nextLabels[0], nextLabels);
+              onUpdateConnectionLabel(conn.id, nextLabels[0] || '', nextLabels);
             };
+
+            const hasVisibleLabels = currentLabels.some(lbl => lbl && lbl.trim() !== "");
 
             return (
               <div
@@ -1520,36 +1532,94 @@ export default function Workspace({
                 className="absolute transform -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-1.5 text-[10px] text-slate-700 transition-all duration-200 select-none"
                 style={{ left: l.x, top: l.y }}
               >
-                {/* Horizontal list of active labels as light, pretty borderless pills */}
-                <div className="flex flex-col gap-1 items-center">
-                  {currentLabels.map((lbl, idx) => (
-                    <div key={idx} className="flex items-center gap-0.5 bg-white/70 backdrop-blur-xs text-teal-900 rounded-md px-1.5 py-0.5 hover:bg-white/95 transition-all">
-                      <select
-                        value={lbl}
-                        onChange={(e) => handleUpdateLabelAt(idx, e.target.value)}
-                        className="bg-transparent border-none font-extrabold text-[9px] text-teal-850 focus:outline-none cursor-pointer text-center px-1 appearance-none"
-                        id={`select-label-${conn.id}-${idx}`}
-                      >
-                        {CONNECTION_LABEL_PRESETS.map((p, i) => (
-                          <option key={i} value={p}>{p}</option>
-                        ))}
-                        {!CONNECTION_LABEL_PRESETS.includes(lbl) && (
-                          <option value={lbl}>{lbl}</option>
-                        )}
-                      </select>
-                      
-                      {currentLabels.length > 1 && (
-                        <button
-                          onClick={() => handleRemoveLabelAt(idx)}
-                          className="text-teal-650 hover:text-red-500 p-0.5 rounded-full hover:bg-red-50 transition-colors shrink-0 cursor-pointer"
-                          title="Supprimer ce libellé"
+                {hasVisibleLabels && (
+                  <div className="flex flex-col gap-1 items-center">
+                    {currentLabels.map((lbl, idx) => {
+                      if (!lbl || lbl.trim() === "") return null;
+
+                      const isEditingThis = editingLabel?.connId === conn.id && editingLabel?.index === idx;
+
+                      return (
+                        <div 
+                          key={idx} 
+                          className="flex items-center gap-1 bg-white/90 backdrop-blur-xs text-slate-900 rounded-md px-1.5 py-0.5 hover:bg-white transition-all shadow-2xs border border-slate-200"
                         >
-                          <X size={8} strokeWidth={2.5} />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                          {isEditingThis ? (
+                            <input
+                              type="text"
+                              value={tempLabelValue}
+                              autoFocus
+                              onChange={(e) => setTempLabelValue(e.target.value)}
+                              onBlur={() => {
+                                handleUpdateLabelAt(idx, tempLabelValue);
+                                setEditingLabel(null);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  handleUpdateLabelAt(idx, tempLabelValue);
+                                  setEditingLabel(null);
+                                } else if (e.key === 'Escape') {
+                                  setEditingLabel(null);
+                                }
+                              }}
+                              className="bg-white border border-blue-500 rounded px-1 py-0.5 text-[9px] font-bold text-black outline-none text-center transition-all"
+                              style={{ width: `${Math.max(3, tempLabelValue.length + 1.5)}ch`, minWidth: '3rem' }}
+                              placeholder="Saisir..."
+                              id={`input-label-${conn.id}-${idx}`}
+                            />
+                          ) : (
+                            <>
+                              <select
+                                value={lbl}
+                                onChange={(e) => {
+                                  if (e.target.value === '__custom__') {
+                                    setEditingLabel({ connId: conn.id, index: idx });
+                                    setTempLabelValue(lbl);
+                                  } else {
+                                    handleUpdateLabelAt(idx, e.target.value);
+                                  }
+                                }}
+                                className="bg-transparent border-none font-extrabold text-[9px] text-black focus:outline-none cursor-pointer text-center px-0.5 appearance-none"
+                                style={{ width: `${Math.max(1.5, lbl.length + 0.8)}ch`, minWidth: '1.2rem', maxWidth: '22rem' }}
+                                id={`select-label-${conn.id}-${idx}`}
+                              >
+                                <option value="">(Sans étiquette)</option>
+                                {CONNECTION_LABEL_PRESETS.map((p, i) => (
+                                  p && <option key={i} value={p}>{p}</option>
+                                ))}
+                                {!CONNECTION_LABEL_PRESETS.includes(lbl) && lbl && (
+                                  <option value={lbl}>{lbl}</option>
+                                )}
+                                <option value="__custom__">✍️ Saisir un texte...</option>
+                              </select>
+
+                              <button
+                                onClick={() => {
+                                  setEditingLabel({ connId: conn.id, index: idx });
+                                  setTempLabelValue(lbl);
+                                }}
+                                className="text-slate-500 hover:text-blue-600 p-0.5 rounded-full hover:bg-blue-50 transition-colors shrink-0 cursor-pointer"
+                                title="Modifier le libellé (saisir une valeur)"
+                                id={`edit-label-btn-${conn.id}-${idx}`}
+                              >
+                                <Edit3 size={8} strokeWidth={2.5} />
+                              </button>
+                            </>
+                          )}
+                          
+                          <button
+                            onClick={() => handleRemoveLabelAt(idx)}
+                            className="text-slate-500 hover:text-red-500 p-0.5 rounded-full hover:bg-red-50 transition-colors shrink-0 cursor-pointer"
+                            title="Supprimer ce libellé"
+                            id={`remove-label-btn-${conn.id}-${idx}`}
+                          >
+                            <X size={8} strokeWidth={2.5} />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
 
                 {/* Centered minimal + button to add option */}
                 <button
