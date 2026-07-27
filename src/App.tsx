@@ -11,7 +11,7 @@ import PropertyPanel from './components/PropertyPanel';
 import DataManagement from './components/DataManagement';
 import PreviewSection from './components/PreviewSection';
 import { TelecomProject, CallNode, Connection, NodeType, PhoneLine, DirectoryUser, ReusableTemplate } from './types';
-import { INITIAL_DEFAULT_PROJECT, BLANK_PROJECT, NODE_METADATA } from './utils/templates';
+import { INITIAL_DEFAULT_PROJECT, BLANK_PROJECT, DEMO_PROJECT, NODE_METADATA } from './utils/templates';
 import { AlertTriangle, Trash2, CheckCircle, Info, X, ChevronLeft, ChevronRight } from 'lucide-react';
 
 export default function App() {
@@ -127,14 +127,14 @@ export default function App() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed && parsed.projectName && Array.isArray(parsed.nodes)) {
+        if (parsed && parsed.projectName !== undefined && Array.isArray(parsed.nodes)) {
           setProject(parsed);
         }
       } catch (err) {
         console.error('Failed to load project from local storage: ', err);
       }
     } else {
-      setProject(JSON.parse(JSON.stringify(INITIAL_DEFAULT_PROJECT)));
+      setProject(JSON.parse(JSON.stringify(BLANK_PROJECT)));
     }
   }, []);
 
@@ -375,7 +375,7 @@ export default function App() {
       cancelText: 'Annuler',
       type: 'info',
       onConfirm: () => {
-        const clonedDemo = JSON.parse(JSON.stringify(INITIAL_DEFAULT_PROJECT));
+        const clonedDemo = JSON.parse(JSON.stringify(DEMO_PROJECT));
         pushToHistory(project);
         setProject(clonedDemo);
         setSelectedNodeId(null);

@@ -334,7 +334,7 @@ export const NODE_METADATA: Record<NodeType, {
   }
 };
 
-export const INITIAL_DEFAULT_PROJECT: TelecomProject = {
+export const DEMO_PROJECT: TelecomProject = {
   projectName: 'Siège Social Acme Corp',
   clientName: 'ACME S.A.',
   siteName: 'Paris Centre - Direction Générale',
@@ -687,16 +687,18 @@ export const INITIAL_DEFAULT_PROJECT: TelecomProject = {
 };
 
 export const BLANK_PROJECT: TelecomProject = {
-  projectName: 'Nouveau Projet Vierge',
+  projectName: '',
   clientName: '',
   siteName: '',
   author: '',
-  createdAt: '2026-06-18',
-  updatedAt: '2026-06-18',
+  createdAt: '',
+  updatedAt: '',
   lines: [],
   users: [],
   templates: [],
   nodes: [],
   connections: []
 };
+
+export const INITIAL_DEFAULT_PROJECT: TelecomProject = BLANK_PROJECT;
 
