@@ -505,6 +505,7 @@ export default function DataManagement({
                       <th className="p-3 w-36">SDA Associée</th>
                       <th className="p-3 w-32">Type</th>
                       <th className="p-3 w-44">Modèle Téléphone</th>
+                      <th className="p-3 w-28 text-center">Option PABX Mobile</th>
                       <th className="p-3 w-20">Messagerie</th>
                       <th className="p-3 w-20">Renvoi</th>
                       <th className="p-3 w-40">Observations</th>
@@ -563,6 +564,7 @@ export default function DataManagement({
                             >
                               <option value="IP">IP Fixe</option>
                               <option value="DECT">Sans fil DECT</option>
+                              <option value="Mobile PBU">Mobile SFR (Option PABX)</option>
                               <option value="Softphone">Softphone PC</option>
                               <option value="Analogique">Analogique</option>
                             </select>
@@ -626,6 +628,19 @@ export default function DataManagement({
                                 />
                               )}
                             </div>
+                          </td>
+                          <td className="p-2.5 text-center">
+                            <label className="inline-flex items-center gap-1 cursor-pointer" title="Option PABX Mobile (Convergence SFR PBU / Fixe-Mobile)">
+                              <input
+                                type="checkbox"
+                                checked={!!u.hasPabxOption || u.stationType === 'Mobile PBU'}
+                                onChange={(e) => handleUpdateUser(u.id, { hasPabxOption: e.target.checked })}
+                                className="w-4 h-4 rounded text-red-600 focus:ring-red-400 cursor-pointer"
+                              />
+                              {(u.hasPabxOption || u.stationType === 'Mobile PBU') && (
+                                <span className="text-[9px] bg-red-100 text-red-700 font-extrabold px-1 rounded">PBU</span>
+                              )}
+                            </label>
                           </td>
                           <td className="p-2.5 text-center">
                             <input
@@ -723,9 +738,10 @@ export default function DataManagement({
                 <thead>
                   <tr className="bg-slate-900 text-slate-300 font-extrabold uppercase text-[10px] tracking-wider border-b border-slate-800">
                     <th className="p-3 w-48">NDI de tête</th>
-                    <th className="p-3 w-40">Type de Ligne</th>
-                    <th className="p-3 w-32">Canaux Voix</th>
-                    <th className="p-3 w-56">Opérateur Télécom</th>
+                    <th className="p-3 w-44">Type de Ligne</th>
+                    <th className="p-3 w-28">Canaux Voix</th>
+                    <th className="p-3 w-44">Opérateur Télécom</th>
+                    <th className="p-3 w-28 text-center">Option PABX</th>
                     <th className="p-3">Notes de raccordement</th>
                     <th className="p-3 w-20 text-center">Actions</th>
                   </tr>
@@ -757,6 +773,8 @@ export default function DataManagement({
                             <option value="T0">T0 (ISDN / Numéris)</option>
                             <option value="T2">T2 (ISDN / Numéris étendu)</option>
                             <option value="Analogique">Ligne analogique</option>
+                            <option value="Ligne Mobile">Ligne Mobile Standard</option>
+                            <option value="Mobile PBU / SFR (Option PABX)">Mobile SFR PBU (Option PABX)</option>
                           </select>
                         </td>
                         <td className="p-3">
@@ -779,6 +797,19 @@ export default function DataManagement({
                             ))}
                             <option value="Autre">Autre</option>
                           </select>
+                        </td>
+                        <td className="p-3 text-center">
+                          <label className="inline-flex items-center gap-1 cursor-pointer" title="Option PABX (ex: SFR PBU / Convergence)">
+                            <input
+                              type="checkbox"
+                              checked={!!line.hasPabxOption || line.type === 'Mobile PBU / SFR (Option PABX)'}
+                              onChange={(e) => handleUpdateLine(line.id, { hasPabxOption: e.target.checked })}
+                              className="w-4 h-4 rounded text-red-600 focus:ring-red-400 cursor-pointer"
+                            />
+                            {(line.hasPabxOption || line.type === 'Mobile PBU / SFR (Option PABX)') && (
+                              <span className="text-[9px] bg-red-100 text-red-700 font-extrabold px-1 rounded">PABX</span>
+                            )}
+                          </label>
                         </td>
                         <td className="p-3">
                           <input

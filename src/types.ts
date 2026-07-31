@@ -52,6 +52,8 @@ export interface CallNode {
     techComment?: string;       // technician-specific comment
     clientComment?: string;     // client-friendly comment
     additionalOptions?: string[]; // e.g., ["Enregistrement d'appel", "Musique d'attente"]
+    groupType?: string; // e.g. "simultaneous", "sequential", "rotative"
+    ringTime?: string; // e.g. "20s"
     
     // Add custom advanced fields
     forwardType?: 'manual' | 'scheduled' | 'none'; // Forward type
@@ -108,6 +110,13 @@ export interface CallNode {
     hideMetadata?: boolean;
     hideInternalNumber?: boolean;
     hideExternalNumber?: boolean;
+    hidePabxBadge?: boolean;
+
+    // Option PABX sur mobile (ex: SFR PBU / Convergence Fixe-Mobile)
+    hasPabxOption?: boolean;
+    pabxOperator?: string; // ex: "SFR Business (PBU)", "Orange Business", "Bouygues Telecom", "Autre"
+    pabxOptionDetails?: string; // ex: "Poste Business Unifié (PBU) - Convergence Fixe-Mobile, Supervision, Transferts"
+    pabxMobileNumber?: string;
   };
 }
 
@@ -117,6 +126,7 @@ export interface Connection {
   targetId: string;
   label: string; // e.g., "si occupé", "hors horaires", "appel entrant", etc.
   labels?: string[]; // For multiple connection names / options per connection
+  labelOffset?: { x: number; y: number }; // Optional custom dragged position offset
 }
 
 export interface DirectoryUser {
@@ -125,7 +135,7 @@ export interface DirectoryUser {
   email: string;
   internalNumber: string;
   sdaId: string; // Associated SDA Number
-  stationType: 'IP' | 'DECT' | 'Softphone' | 'Analogique';
+  stationType: 'IP' | 'DECT' | 'Softphone' | 'Analogique' | 'Mobile PBU';
   phoneBrand?: string;
   phoneModel: string;
   phoneModelCustom?: string;
@@ -133,15 +143,20 @@ export interface DirectoryUser {
   forwardEnabled: boolean;
   forwardDestination: string;
   comment: string;
+  hasPabxOption?: boolean;
+  pabxOperator?: string;
+  pabxMobileNumber?: string;
 }
 
 export interface PhoneLine {
   id: string;
   ndi: string;
-  type: 'SIP Trunk' | 'T0' | 'T2' | 'Analogique';
+  type: 'SIP Trunk' | 'T0' | 'T2' | 'Analogique' | 'Ligne Mobile' | 'Mobile PBU / SFR (Option PABX)';
   channels: number;
   provider: string;
   comment: string;
+  hasPabxOption?: boolean;
+  pabxOptionDetails?: string;
 }
 
 export interface ReusableTemplate {

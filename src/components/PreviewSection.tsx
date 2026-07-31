@@ -1469,6 +1469,18 @@ export default function PreviewSection({ project, validationAlerts }: PreviewSec
                             </div>
                           )}
 
+                          {/* Option PABX Mobile (ex: SFR PBU) */}
+                          {(node.properties.hasPabxOption || node.properties.phoneType === 'Mobile PBU') && (
+                            <div className="text-[11px] bg-red-50 text-red-950 p-1.5 rounded border border-red-200 mt-1 space-y-0.5">
+                              <div className="font-bold text-red-800 flex items-center gap-1">
+                                <span className="bg-red-600 text-white text-[8px] font-black px-1 rounded">PABX</span>
+                                <span>{node.properties.pabxOperator || 'SFR Business (PBU)'}</span>
+                              </div>
+                              {node.properties.pabxMobileNumber && <div>• <b>Ligne Mobile :</b> <span className="font-mono">{node.properties.pabxMobileNumber}</span></div>}
+                              {node.properties.pabxOptionDetails && <div>• <b>Option / Profil :</b> {node.properties.pabxOptionDetails}</div>}
+                            </div>
+                          )}
+
                           {/* Accessories */}
                           {node.properties.hasExtensionModule && node.properties.hasExtensionModule !== "aucun module d'extension" && (
                             <div>• <b>Module DSS :</b> {node.properties.hasExtensionModule} ({node.properties.extensionModuleModel === 'module personnalisé' ? node.properties.extensionModuleCustom : node.properties.extensionModuleModel})</div>

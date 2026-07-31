@@ -335,38 +335,33 @@ export const NODE_METADATA: Record<NodeType, {
 };
 
 export const DEMO_PROJECT: TelecomProject = {
-  projectName: 'Siège Social Acme Corp',
+  projectName: 'Architecture Télécom Complète Acme Corp',
   clientName: 'ACME S.A.',
-  siteName: 'Paris Centre - Direction Générale',
-  author: 'Jean Technicien',
+  siteName: 'Siège Social Paris - Multi-lignes',
+  author: 'Expert Télécom',
   createdAt: '2026-06-18',
-  updatedAt: '2026-06-18',
+  updatedAt: '2026-07-30',
   lines: [
     {
       id: 'l-1',
       ndi: '01 40 20 30 00',
       type: 'SIP Trunk',
+      channels: 30,
+      provider: 'Orange Business Services / SFR Business',
+      comment: 'Trunk SIP principal IP raccordé avec pool de 100 SDA.'
+    },
+    {
+      id: 'l-2',
+      ndi: '01 40 20 30 10',
+      type: 'SIP Trunk',
       channels: 10,
-      provider: 'Orange Business Services',
-      comment: 'Trunk SIP principal IP raccordé sur SBC de secours.'
+      provider: 'SFR Business PBU',
+      comment: 'Ligne directe Groupement Standardiste.'
     }
   ],
   users: [
     {
       id: 'u-1',
-      name: 'Standard Général',
-      email: 'standard@acme.com',
-      internalNumber: '100',
-      sdaId: '01 40 20 30 00',
-      stationType: 'IP',
-      phoneModel: 'Yealink T54W',
-      voicemailEnabled: true,
-      forwardEnabled: true,
-      forwardDestination: '999',
-      comment: 'Poste standard principale avec module d\'extension raccordé.'
-    },
-    {
-      id: 'u-2',
       name: 'Alice Commercial',
       email: 'alice@acme.com',
       internalNumber: '101',
@@ -376,312 +371,428 @@ export const DEMO_PROJECT: TelecomProject = {
       voicemailEnabled: true,
       forwardEnabled: false,
       forwardDestination: '',
-      comment: 'Commerciale France, messagerie activée sur non-réponse.'
+      comment: 'Commerciale Senior. Possède sa ligne SDA directe et est également joignable via l\'SVI Ventes. Option PABX SFR activée.'
     },
     {
-      id: 'u-3',
+      id: 'u-2',
       name: 'Bob Support Client',
       email: 'bob@acme.com',
       internalNumber: '102',
       sdaId: '01 40 20 30 02',
       stationType: 'Softphone',
       phoneModel: 'Softphone (Sip Client)',
-      voicemailEnabled: false,
+      voicemailEnabled: true,
       forwardEnabled: true,
       forwardDestination: '06 12 34 56 78',
-      comment: 'Technicien Support, renvoi sur mobile si absent.'
+      comment: 'Technicien Support Niveau 1, membre du groupement support.'
+    },
+    {
+      id: 'u-3',
+      name: 'Charlie Ventes',
+      email: 'charlie@acme.com',
+      internalNumber: '103',
+      sdaId: '',
+      stationType: 'IP',
+      phoneModel: 'Yealink T54W',
+      voicemailEnabled: false,
+      forwardEnabled: false,
+      forwardDestination: '',
+      comment: 'Commercial zone Sud, membre du groupement ventes SVI.'
+    },
+    {
+      id: 'u-4',
+      name: 'Martine Accueil',
+      email: 'martine@acme.com',
+      internalNumber: '201',
+      sdaId: '',
+      stationType: 'IP',
+      phoneModel: 'Yealink T54W',
+      voicemailEnabled: false,
+      forwardEnabled: false,
+      forwardDestination: '',
+      comment: 'Standardiste principale sur le Groupement Ligne Directe Standard.'
+    },
+    {
+      id: 'u-5',
+      name: 'Pierre Compta & Accueil',
+      email: 'pierre@acme.com',
+      internalNumber: '202',
+      sdaId: '',
+      stationType: 'IP',
+      phoneModel: 'Mitel 6920 IP',
+      voicemailEnabled: false,
+      forwardEnabled: false,
+      forwardDestination: '',
+      comment: 'Poste secours du groupement d\'accueil.'
     }
   ],
   templates: DEFAULT_TEMPLATES,
   nodes: [
+    // 1. Ligne Directe Unique (SDA Directe pour Poste Alice qui est aussi dans l'SVI) - Placée en haut
     {
-      id: 'node-1',
+      id: 'node-sda-alice',
       type: 'sda',
-      name: 'Numéro Unique Client',
+      name: '01 40 20 30 01 - SDA Directe Alice',
       x: 30,
-      y: 180,
-      properties: {
-        number: '0140203000',
-        description: 'Sélection Directe à l\'Arrivée du standard commercial',
-        techComment: 'Entrée principale de la ligne VoIP Trunk SIP',
-        clientComment: 'Numéro général de l\'entreprise imprimé sur vos cartes d\'affaires.'
-      }
-    },
-    {
-      id: 'node-2',
-      type: 'day_night',
-      name: 'Règle Heures d\'Ouverture',
-      x: 240,
-      y: 180,
-      properties: {
-        timeSchedule: '08:30-12:00, 14:00-18:00',
-        description: 'Horaires habituels Acme Corp',
-        techComment: 'Bascule automatique. Lundi au Vendredi.',
-        clientComment: 'Aiguillage selon nos horaires d\'ouverture de bureau.'
-      }
-    },
-    {
-      id: 'node-3',
-      type: 'ivr',
-      name: 'Menu SVI Principal',
-      x: 480,
-      y: 80,
-      properties: {
-        audioMessageName: 'svi_general_fr.wav',
-        description: 'Serveur Vocal Interactif commercial et support',
-        techComment: 'Touche 1 = Alice (Ventes), Touche 2 = Bob (Technique)',
-        clientComment: 'Vous entendrez : "Pour les ventes, tapez 1. Pour le support, tapez 2.".'
-      }
-    },
-    {
-      id: 'node-4',
-      type: 'user_station',
-      name: 'Poste d\'Alice (Ventes)',
-      x: 750,
       y: 30,
       properties: {
-        userName: 'Alice Robinson',
-        stationName: 'Bureau Commercial',
+        number: '0140203001',
+        description: 'Numéro direct SDA attribué personnellement à Alice',
+        techComment: 'Appel entrant direct qui pointe vers le Poste 101 d\'Alice.',
+        clientComment: 'Ligne directe réservée aux contacts VIP et clients privilégiés d\'Alice.'
+      }
+    },
+    {
+      id: 'node-user-alice',
+      type: 'user_station',
+      name: 'Poste Alice (Ventes & Direct)',
+      x: 1040,
+      y: 30,
+      properties: {
+        userName: 'Alice Commercial',
+        stationName: 'Bureau Commercial Senior',
         internalNumber: '101',
         phoneModel: 'Yealink T46U',
-        description: 'Commerciale Senior zone Nord',
-        techComment: 'IP Yealink branché sur switch POE d\'étage.',
-        clientComment: 'Téléphone commercial direct d\'Alice.'
+        hasPabxOption: true,
+        pabxOperator: 'SFR PBU',
+        description: 'Commerciale Senior (Présente sur SVI + ligne SDA directe dédiée)',
+        techComment: 'Poste IP Yealink avec Option PABX. Reçoit les appels directs de la SDA 0140203001 et les appels du SVI Ventes.',
+        clientComment: 'Poste d\'Alice. Peut être jointe via le SVI (Ventes) ou directement sur son numéro SDA.'
       }
     },
     {
-      id: 'node-5',
-      type: 'user_station',
-      name: 'Poste de Bob (Support)',
-      x: 750,
-      y: 180,
-      properties: {
-        userName: 'Bob Durand',
-        stationName: 'Bureau Support Client',
-        internalNumber: '102',
-        phoneModel: 'Softphone (Sip Client)',
-        description: 'Support technique niveau d\'escalade 1',
-        techComment: 'Sip-Client sur PC Windows via VPN.',
-        clientComment: 'Poste IP du service client de Bob.'
-      }
-    },
-    {
-      id: 'node-6',
+      id: 'node-vm-alice',
       type: 'voicemail',
-      name: 'Messagerie Fermeture',
-      x: 480,
-      y: 340,
-      properties: {
-        internalNumber: '999',
-        audioMessageName: 'fermeture_nuit.wav',
-        description: 'Boîte aux lettres générale d\'absence',
-        techComment: 'Redirige vers adresse email contact@acme.com',
-        clientComment: 'Boîte vocale d\'absence enregistrable permettant de laisser un message.'
-      }
-    },
-    {
-      id: 'node-7',
-      type: 'voicemail',
-      name: 'Messagerie Alice (Absente)',
-      x: 1010,
-      y: 90,
+      name: 'Boîte Vocale Perso Alice',
+      x: 1330,
+      y: 30,
       properties: {
         internalNumber: '111',
         audioMessageName: 'messagerie_alice.wav',
-        description: 'Messagerie vocale commerciale d\'Alice',
-        techComment: 'Notification de message activée vers alice@acme.com',
-        clientComment: 'Si Alice est déjà en ligne ou absente, vos clients peuvent laisser un message ici.'
+        description: 'Messagerie vocale personnelle d\'Alice sur non-réponse',
+        techComment: 'Renvoi automatique sur non-réponse prolongée.',
+        clientComment: 'Permet de laisser un message direct dans la boîte d\'Alice.'
+      }
+    },
+
+    // 2. Branche Ligne Principale SVI (Accueil Vocal Interactif)
+    {
+      id: 'node-sda-svi',
+      type: 'sda',
+      name: '01 40 20 30 00 - SDA SVI Principale',
+      x: 30,
+      y: 260,
+      properties: {
+        number: '0140203000',
+        description: 'Numéro d\'Accueil Général SVI / AVI (Ligne Principale)',
+        techComment: 'Entrée principale du Trunk SIP vers le serveur vocal.',
+        clientComment: 'Numéro général de l\'entreprise affiché sur le site web et cartes d\'affaires.'
       }
     },
     {
-      id: 'node-8',
+      id: 'node-time-svi',
+      type: 'day_night',
+      name: 'Horaires Ouverture SVI',
+      x: 270,
+      y: 260,
+      properties: {
+        timeSchedule: '08:30-12:00, 14:00-18:00',
+        description: 'Horaires d\'ouverture habituels (Lun-Ven)',
+        techComment: 'Bascule automatique jour/nuit. Jours fériés redirigés.',
+        clientComment: 'Aiguillage selon nos heures d\'ouverture de bureau.'
+      }
+    },
+    {
+      id: 'node-svi-main',
+      type: 'ivr',
+      name: 'SVI / AVI Accueil Général',
+      x: 510,
+      y: 240,
+      properties: {
+        audioMessageName: 'accueil_svi_general.wav',
+        description: 'Serveur Vocal Interactif commercial et support',
+        techComment: 'Touche 1 = Groupement Commercial, Touche 2 = Groupement Support',
+        clientComment: 'Vous entendrez : "Pour le service commercial tapez 1, pour le support technique tapez 2."'
+      }
+    },
+    {
+      id: 'node-vm-night',
+      type: 'voicemail',
+      name: 'Messagerie Fermeture SVI',
+      x: 510,
+      y: 470,
+      properties: {
+        internalNumber: '999',
+        audioMessageName: 'fermeture_nuit.wav',
+        description: 'Boîte aux lettres générale de nuit / fermeture',
+        techComment: 'Messages audio envoyés par email à accueil@acme.com',
+        clientComment: 'Boîte vocale permettant de laisser un message en dehors des heures d\'ouverture.'
+      }
+    },
+    {
+      id: 'node-grp-comm',
       type: 'call_group',
-      name: 'Gr. Interne Comptabilité & RH',
+      name: 'Groupement Ventes & Commercial',
+      x: 770,
+      y: 240,
+      properties: {
+        internalNumber: '150',
+        groupType: 'simultaneous',
+        ringTime: '20s',
+        description: 'Distribution simultanée sur les postes commerciaux (Alice & Charlie)',
+        techComment: 'Scrutation simultanée sur postes 101 et 103.',
+        clientComment: 'Fait sonner l\'ensemble des téléphones de l\'équipe commerciale.'
+      }
+    },
+    {
+      id: 'node-grp-supp',
+      type: 'call_group',
+      name: 'Groupement Support Technique',
+      x: 770,
+      y: 490,
+      properties: {
+        internalNumber: '160',
+        groupType: 'sequential',
+        ringTime: '15s',
+        description: 'Equipe support technique niveau 1 (Bob)',
+        techComment: 'Scrutation séquentielle sur poste support.',
+        clientComment: 'Postes d\'assistance technique.'
+      }
+    },
+    {
+      id: 'node-user-charlie',
+      type: 'user_station',
+      name: 'Poste Charlie (Ventes)',
+      x: 1040,
+      y: 270,
+      properties: {
+        userName: 'Charlie Ventes',
+        stationName: 'Bureau Commercial 2',
+        internalNumber: '103',
+        phoneModel: 'Yealink T54W',
+        description: 'Commercial zone Sud',
+        techComment: 'Poste IP membre du groupement de ventes.',
+        clientComment: 'Poste commercial de Charlie.'
+      }
+    },
+    {
+      id: 'node-user-bob',
+      type: 'user_station',
+      name: 'Poste Bob (Support)',
+      x: 1040,
+      y: 490,
+      properties: {
+        userName: 'Bob Support Client',
+        stationName: 'Poste Support',
+        internalNumber: '102',
+        phoneModel: 'Softphone SIP',
+        description: 'Technicien Support Client',
+        techComment: 'Sip-Client sur PC Windows via VPN.',
+        clientComment: 'Poste du support technique.'
+      }
+    },
+
+    // 3. Branche Groupement comme Ligne Principale
+    {
+      id: 'node-sda-std',
+      type: 'sda',
+      name: '01 40 20 30 10 - SDA Groupement Standard',
       x: 30,
-      y: 500,
+      y: 770,
+      properties: {
+        number: '0140203010',
+        description: 'Ligne directe d\'entrée vers le Groupement de Standardistes',
+        techComment: 'Pointe directement sur le groupement N°200 sans passer par un SVI.',
+        clientComment: 'Ligne directe d\'accueil téléphonique général.'
+      }
+    },
+    {
+      id: 'node-grp-std',
+      type: 'call_group',
+      name: 'Groupement Standard Général',
+      x: 300,
+      y: 770,
       properties: {
         internalNumber: '200',
-        description: 'Groupe de distribution interne d\'administration',
-        techComment: 'Scrutation simultanée sur les postes internes 201 et 202.',
-        clientComment: 'Ligne interne commune : fait sonner la comptabilité et les RH.'
+        groupType: 'simultaneous',
+        ringTime: '20s',
+        description: 'Groupement d\'accueil physique (Martine & Pierre)',
+        techComment: 'Fait sonner simultanément les postes d\'accueil 201 et 202.',
+        clientComment: 'Recherche simultanée des hôtes d\'accueil.'
       }
     },
     {
-      id: 'node-9',
+      id: 'node-user-martine',
       type: 'user_station',
-      name: 'Poste RH (Interne)',
-      x: 320,
-      y: 450,
+      name: 'Poste Martine (Standard 1)',
+      x: 580,
+      y: 720,
       properties: {
-        userName: 'Martine Recrutement',
-        stationName: 'Bureau RH',
+        userName: 'Martine Accueil',
+        stationName: 'Bureau Accueil A',
         internalNumber: '201',
         phoneModel: 'Yealink T54W',
-        description: 'Poste interne RH sans numéro direct SDA',
-        techComment: 'Poste SIP rattaché au dect de l\'étage.',
-        clientComment: 'Martine gère le recrutement. Poste joignable uniquement en interne via le 201.'
+        description: 'Standardiste principale',
+        techComment: 'Poste IP avec console de supervision d\'extension.',
+        clientComment: 'Poste de l\'accueil principal.'
       }
     },
     {
-      id: 'node-10',
+      id: 'node-user-pierre',
       type: 'user_station',
-      name: 'Poste Comptabilité (Interne)',
-      x: 320,
-      y: 560,
+      name: 'Poste Pierre (Standard 2)',
+      x: 580,
+      y: 940,
       properties: {
-        userName: 'Pierre Finance',
-        stationName: 'Bureau Compta',
+        userName: 'Pierre Compta & Accueil',
+        stationName: 'Bureau Accueil B',
         internalNumber: '202',
         phoneModel: 'Mitel 6920 IP',
-        description: 'Comptable général de l\'entreprise',
-        techComment: 'Poste physique IP connecté au LAN Interne.',
-        clientComment: 'Pierre est le comptable. Poste joignable uniquement en interne via le 202.'
+        description: 'Standardiste secondaire',
+        techComment: 'Poste IP compta / secours accueil.',
+        clientComment: 'Poste d\'accueil secondaire.'
       }
     },
     {
-      id: 'node-11',
+      id: 'node-vm-std',
       type: 'voicemail',
-      name: 'Messagerie Admin Interne',
-      x: 620,
-      y: 500,
+      name: 'Messagerie Vocale Standard',
+      x: 840,
+      y: 770,
       properties: {
-        internalNumber: '220',
-        audioMessageName: 'messagerie_admin.wav',
-        description: 'Boîte de messagerie d\'administration générale',
-        techComment: 'Notification mail vers admin-notifs@acme.com',
-        clientComment: 'Messagerie commune d\'administration pour laisser des messages internes ou consignes.'
+        internalNumber: '299',
+        audioMessageName: 'messagerie_standard.wav',
+        description: 'Messagerie de groupe du standard général',
+        techComment: 'Notification mail automatique vers standard@acme.com',
+        clientComment: 'Messagerie commune si aucun standardiste n\'est disponible.'
       }
     },
+
+    // 4. Branche Parc Postes & Sortie
     {
-      id: 'node-12',
+      id: 'node-pool',
       type: 'user_station',
-      name: 'Parc Central Postes Standards',
+      name: 'Pool Postes Internes 300-320',
       x: 30,
-      y: 800,
+      y: 1180,
       properties: {
-        internalNumber: '300 à 350',
-        userName: 'Agents Généraux (50 postes)',
-        stationName: 'Bureaux Standards',
+        internalNumber: '300 à 320',
+        userName: 'Agents Internes (20 postes)',
         phoneModel: 'Yealink T46U',
-        outgoingCallerId: '01 40 00 11 11',
-        description: 'Postes de travail sans ligne SDA directe individuelle',
-        techComment: 'Abonnement SIP Trunk multi-canaux sans SDA personnelle.',
-        clientComment: 'Tous ces postes partagent le même comportement standard d\'appel entrant et sortant.'
+        description: 'Postes internes sans SDA d\'entrée directe',
+        techComment: 'Canaux sortants partagés sur Trunk SIP.',
+        clientComment: 'Postes de travail internes sans ligne directe attribuée.'
       }
     },
     {
-      id: 'node-13',
+      id: 'node-out',
       type: 'outgoing_num',
-      name: 'Sortie: 01 40 00 11 11',
-      x: 320,
-      y: 730,
+      name: 'Sortie Présentée: 01 40 00 11 11',
+      x: 340,
+      y: 1180,
       properties: {
         number: '0140001111',
-        description: 'Numéro d\'accueil général présenté à l\'extérieur',
-        techComment: 'Outgoing Caller ID configuration au niveau du Trunk principal.',
-        clientComment: 'Numéro unique affiché sur le téléphone des correspondants appelés par ces postes.'
-      }
-    },
-    {
-      id: 'node-14',
-      type: 'incoming_num',
-      name: 'Entrée: Pas de SDA directe',
-      x: 320,
-      y: 870,
-      properties: {
-        number: 'Inaccessible Directement',
-        description: 'Refus automatique des appels entrants directs externes',
-        techComment: 'Routage entrant direct désactivé. Obligation de passer par le standard.',
-        clientComment: 'Ces téléphones ne peuvent pas être joints directement de l\'extérieur (passer d\'abord par le standard).'
-      }
-    },
-    {
-      id: 'node-15',
-      type: 'voicemail',
-      name: 'Boîte Vocale Commune 300',
-      x: 620,
-      y: 800,
-      properties: {
-        internalNumber: '399',
-        audioMessageName: 'messagerie_commune_300.wav',
-        description: 'Messagerie vocale partagée du pool de postes',
-        techComment: 'Boîte vocale de groupe sur non-réponse prolongée ou renvoi global.',
-        clientComment: 'Boîte mail de réception de messages vocaux accessible depuis n\'importe quel poste via touche ou code.'
+        description: 'Numéro général affiché lors des appels sortants du pool'
       }
     }
   ],
   connections: [
+    // Branche 1: SVI
     {
       id: 'conn-1',
-      sourceId: 'node-1',
-      targetId: 'node-2',
+      sourceId: 'node-sda-svi',
+      targetId: 'node-time-svi',
       label: 'appel entrant'
     },
     {
       id: 'conn-2',
-      sourceId: 'node-2',
-      targetId: 'node-3',
-      label: 'jours ouvrés'
+      sourceId: 'node-time-svi',
+      targetId: 'node-svi-main',
+      label: 'heures ouvrées'
     },
     {
       id: 'conn-3',
-      sourceId: 'node-2',
-      targetId: 'node-6',
+      sourceId: 'node-time-svi',
+      targetId: 'node-vm-night',
       label: 'hors horaires'
     },
     {
       id: 'conn-4',
-      sourceId: 'node-3',
-      targetId: 'node-4',
+      sourceId: 'node-svi-main',
+      targetId: 'node-grp-comm',
       label: 'touche 1 (Ventes)'
     },
     {
       id: 'conn-5',
-      sourceId: 'node-3',
-      targetId: 'node-5',
+      sourceId: 'node-svi-main',
+      targetId: 'node-grp-supp',
       label: 'touche 2 (Support)'
     },
     {
       id: 'conn-6',
-      sourceId: 'node-4',
-      targetId: 'node-7',
-      label: 'si non-réponse (15s)'
+      sourceId: 'node-grp-comm',
+      targetId: 'node-user-alice',
+      label: 'sonnerie simultanée'
     },
     {
       id: 'conn-7',
-      sourceId: 'node-8',
-      targetId: 'node-9',
-      label: 'parallèle'
+      sourceId: 'node-grp-comm',
+      targetId: 'node-user-charlie',
+      label: 'sonnerie simultanée'
     },
     {
       id: 'conn-8',
-      sourceId: 'node-8',
-      targetId: 'node-10',
-      label: 'parallèle'
+      sourceId: 'node-grp-supp',
+      targetId: 'node-user-bob',
+      label: 'distrib. 1er niveau'
     },
+
+    // Branche 2: Ligne Directe Alice (relie SDA Directe -> Poste Alice qui est déjà dans l'SVI!)
     {
       id: 'conn-9',
-      sourceId: 'node-8',
-      targetId: 'node-11',
-      label: 'si non-réponse (20s)'
+      sourceId: 'node-sda-alice',
+      targetId: 'node-user-alice',
+      label: 'appel direct SDA Alice'
     },
     {
       id: 'conn-10',
-      sourceId: 'node-12',
-      targetId: 'node-13',
-      label: 'appel sortant (via Trunk)'
+      sourceId: 'node-user-alice',
+      targetId: 'node-vm-alice',
+      label: 'si non-réponse (15s)'
     },
+
+    // Branche 3: Groupement comme Ligne Principale
     {
       id: 'conn-11',
-      sourceId: 'node-12',
-      targetId: 'node-14',
-      label: 'appel entrant (Non admis)'
+      sourceId: 'node-sda-std',
+      targetId: 'node-grp-std',
+      label: 'appel entrant direct'
     },
     {
       id: 'conn-12',
-      sourceId: 'node-12',
-      targetId: 'node-15',
-      label: 'si non-réponse'
+      sourceId: 'node-grp-std',
+      targetId: 'node-user-martine',
+      label: 'distrib. simultanée'
+    },
+    {
+      id: 'conn-13',
+      sourceId: 'node-grp-std',
+      targetId: 'node-user-pierre',
+      label: 'distrib. simultanée'
+    },
+    {
+      id: 'conn-14',
+      sourceId: 'node-grp-std',
+      targetId: 'node-vm-std',
+      label: 'si non-réponse (20s)'
+    },
+
+    // Branche 4: Pool & Sortie
+    {
+      id: 'conn-15',
+      sourceId: 'node-pool',
+      targetId: 'node-out',
+      label: 'appel sortant (Caller ID)'
     }
   ]
 };
@@ -700,5 +811,5 @@ export const BLANK_PROJECT: TelecomProject = {
   connections: []
 };
 
-export const INITIAL_DEFAULT_PROJECT: TelecomProject = BLANK_PROJECT;
+export const INITIAL_DEFAULT_PROJECT: TelecomProject = DEMO_PROJECT;
 

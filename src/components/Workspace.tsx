@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
+import { TutorialModal } from './TutorialModal';
 import { 
   Trash2, 
   Settings, 
@@ -46,7 +47,7 @@ interface WorkspaceProps {
   onDeleteNode: (id: string) => void;
   onAddConnection: (sourceId: string, targetId: string, label: string) => void;
   onDeleteConnection: (id: string) => void;
-  onUpdateConnectionLabel: (id: string, label: string, labels?: string[]) => void;
+  onUpdateConnectionLabel: (id: string, label: string, labels?: string[], labelOffset?: { x: number; y: number } | null) => void;
   validationAlerts: { id: string; type: 'error' | 'warning'; message: string; nodeId?: string }[];
   onLoadDemo?: () => void;
   onDragStart?: () => void;
@@ -79,6 +80,56 @@ export default function Workspace({
   const [initialDragPositions, setInitialDragPositions] = useState<{ [id: string]: { x: number; y: number } }>({});
   const [dragStartMouse, setDragStartMouse] = useState({ x: 0, y: 0 });
   const [drawingConnSourceId, setDrawingConnSourceId] = useState<string | null>(null);
+  const [drawingConnStartPos, setDrawingConnStartPos] = useState<{ x: number; y: number } | null>(null);
+  const [domHeights, setDomHeights] = useState<Record<string, number>>({});
+  const [draggingLabelId, setDraggingLabelId] = useState<string | null>(null);
+  const [dragLabelStartMouse, setDragLabelStartMouse] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [dragLabelInitialOffset, setDragLabelInitialOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [isTutorialOpen, setIsTutorialOpen] = useState(false);
+
+  React.useLayoutEffect(() => {
+    const newHeights: Record<string, number> = {};
+    let changed = false;
+
+    nodes.forEach(node => {
+      const el = document.getElementById(`node-${node.id}`);
+      if (el && el.offsetHeight > 0) {
+        newHeights[node.id] = el.offsetHeight;
+        if (domHeights[node.id] !== el.offsetHeight) {
+          changed = true;
+        }
+      }
+    });
+
+    if (changed) {
+      setDomHeights(prev => ({ ...prev, ...newHeights }));
+    }
+
+    if (typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver((entries) => {
+        let hasChanges = false;
+        const updates: Record<string, number> = {};
+        entries.forEach(entry => {
+          const id = entry.target.id.replace('node-', '');
+          const height = entry.target.getBoundingClientRect().height;
+          if (id && height > 0) {
+            updates[id] = height;
+            hasChanges = true;
+          }
+        });
+        if (hasChanges) {
+          setDomHeights(prev => ({ ...prev, ...updates }));
+        }
+      });
+
+      nodes.forEach(node => {
+        const el = document.getElementById(`node-${node.id}`);
+        if (el) observer.observe(el);
+      });
+
+      return () => observer.disconnect();
+    }
+  }, [nodes, connections]);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState<number>(1.0);
 
@@ -172,6 +223,9 @@ export default function Workspace({
       list.push({ label: "Téléphone", value: `${props.phoneBrand} ${modelStr}`.trim() });
     }
     if (props.phoneType) list.push({ label: "Type de poste", value: props.phoneType });
+    if (props.hasPabxOption || props.phoneType === 'Mobile PBU') {
+      list.push({ label: "Option Mobile", value: `Option PABX (${props.pabxOperator || 'SFR PBU'})` });
+    }
     if (props.macAddress) list.push({ label: "Adresse MAC", value: props.macAddress });
     if (props.dectBaseModel) list.push({ label: "Base DECT", value: props.dectBaseModel });
     if (props.dectHandsetModel) list.push({ label: "Combiné DECT", value: props.dectHandsetModel });
@@ -359,10 +413,63 @@ export default function Workspace({
     if (drawingConnSourceId) {
       setMousePos({ x: mouseX, y: mouseY });
     }
+
+    // 4. Handle connection label dragging
+    if (draggingLabelId) {
+      const dx = mouseX - dragLabelStartMouse.x;
+      const dy = mouseY - dragLabelStartMouse.y;
+      const newOffsetX = Math.round(dragLabelInitialOffset.x + dx);
+      const newOffsetY = Math.round(dragLabelInitialOffset.y + dy);
+
+      const conn = connections.find(c => c.id === draggingLabelId);
+      if (conn) {
+        onUpdateConnectionLabel(conn.id, conn.label, conn.labels, { x: newOffsetX, y: newOffsetY });
+      }
+    }
   };
 
-  const handleWorkspaceMouseUp = () => {
+  const handleWorkspaceMouseUp = (e: React.MouseEvent) => {
+    if (drawingConnSourceId) {
+      // Check if mouse release is over a node or port
+      const elementUnderCursor = document.elementFromPoint(e.clientX, e.clientY);
+      let targetNodeId: string | null = null;
+
+      if (elementUnderCursor) {
+        const inletEl = elementUnderCursor.closest('[id^="inlet-"]');
+        const nodeEl = elementUnderCursor.closest('[id^="node-"]');
+        const outletEl = elementUnderCursor.closest('[id^="outlet-"]');
+
+        if (inletEl) {
+          targetNodeId = inletEl.id.replace('inlet-', '');
+        } else if (nodeEl) {
+          targetNodeId = nodeEl.id.replace('node-', '');
+        } else if (outletEl) {
+          targetNodeId = outletEl.id.replace('outlet-', '');
+        }
+      }
+
+      if (targetNodeId && targetNodeId !== drawingConnSourceId) {
+        completeConnection(e, targetNodeId);
+        setDrawingConnStartPos(null);
+        setDraggingNodeId(null);
+        setSelectionBoxStart(null);
+        setSelectionBoxCurrent(null);
+        setInitialSelectedIdsAtBoxStart([]);
+        return;
+      }
+
+      // If user dragged away significantly (>12px) and released on empty space, cancel connection drawing
+      if (drawingConnStartPos) {
+        const dist = Math.hypot(e.clientX - drawingConnStartPos.x, e.clientY - drawingConnStartPos.y);
+        if (dist > 12) {
+          setDrawingConnSourceId(null);
+          setDrawingConnStartPos(null);
+        }
+      }
+    }
+
     setDraggingNodeId(null);
+    setDraggingLabelId(null);
     setSelectionBoxStart(null);
     setSelectionBoxCurrent(null);
     setInitialSelectedIdsAtBoxStart([]);
@@ -476,24 +583,26 @@ export default function Workspace({
 
   const startDrawingConnection = (e: React.MouseEvent, nodeId: string) => {
     e.stopPropagation();
+    e.preventDefault();
     setDrawingConnSourceId(nodeId);
-    
-    // Initialize mouse position
+    setDrawingConnStartPos({ x: e.clientX, y: e.clientY });
+
     const sourceNode = nodes.find(n => n.id === nodeId);
-    if (sourceNode && containerRef.current) {
-      setMousePos({
-        x: sourceNode.x + 190,
-        y: sourceNode.y + 45
-      });
+    if (sourceNode) {
+      const outlet = getNodeOutlet(nodeId);
+      setMousePos(outlet);
     }
   };
 
-  const completeConnection = (e: React.MouseEvent, targetId: string) => {
-    e.stopPropagation();
+  const completeConnection = (e: React.MouseEvent | Event, targetId: string) => {
+    if ('stopPropagation' in e && typeof e.stopPropagation === 'function') {
+      e.stopPropagation();
+    }
     if (!drawingConnSourceId) return;
 
     if (drawingConnSourceId === targetId) {
       setDrawingConnSourceId(null);
+      setDrawingConnStartPos(null);
       return;
     }
 
@@ -507,10 +616,18 @@ export default function Workspace({
       onAddConnection(drawingConnSourceId, targetId, 'appel direct');
     }
     setDrawingConnSourceId(null);
+    setDrawingConnStartPos(null);
   };
 
-  // Estimate dynamic height of node card for visual connections
+  // Get dynamic actual height of node card for perfectly aligned visual connection paths
   const getNodeCardHeight = (node: CallNode) => {
+    if (domHeights[node.id]) {
+      return domHeights[node.id];
+    }
+    const el = typeof document !== 'undefined' ? document.getElementById(`node-${node.id}`) : null;
+    if (el && el.offsetHeight > 0) {
+      return el.offsetHeight;
+    }
     let base = 110;
     if (node.type === 'voicemail' && node.properties?.showVoicemailTextOnNode && node.properties?.voicemailText) {
       const lineCount = node.properties.voicemailText.split('\n').length;
@@ -581,15 +698,18 @@ export default function Workspace({
       const labelW = (maxTextLen * 6.5) + 38;
       const labelH = currentLabels.length * 18 + (currentLabels.length - 1) * 4 + 20;
 
+      const hasOffset = conn.labelOffset && typeof conn.labelOffset.x === 'number' && typeof conn.labelOffset.y === 'number';
+
       return {
         id: conn.id,
-        x: midX,
-        y: midY,
+        x: hasOffset ? midX + conn.labelOffset!.x : midX,
+        y: hasOffset ? midY + conn.labelOffset!.y : midY,
         w: labelW,
         h: labelH,
         origX: midX,
         origY: midY,
-        connection: conn
+        connection: conn,
+        isCustomPosition: hasOffset
       };
     }).filter(l => l.w > 0);
 
@@ -610,8 +730,10 @@ export default function Workspace({
 
       // Resolve labels with other labels
       for (let i = 0; i < resolvedCoords.length; i++) {
+        const l1 = resolvedCoords[i];
+        if (l1.isCustomPosition) continue;
+
         for (let j = i + 1; j < resolvedCoords.length; j++) {
-          const l1 = resolvedCoords[i];
           const l2 = resolvedCoords[j];
 
           const dx = l1.x - l2.x;
@@ -625,15 +747,15 @@ export default function Workspace({
             const overlapX = minD_X - Math.abs(dx);
 
             if (overlapY < overlapX * 1.5) {
-              const pushY = (overlapY / 2) + 1;
+              const pushY = (overlapY / (l2.isCustomPosition ? 1 : 2)) + 1;
               const signY = dy >= 0 ? 1 : -1;
               l1.y += pushY * signY;
-              l2.y -= pushY * signY;
+              if (!l2.isCustomPosition) l2.y -= pushY * signY;
             } else {
-              const pushX = (overlapX / 2) + 1;
+              const pushX = (overlapX / (l2.isCustomPosition ? 1 : 2)) + 1;
               const signX = dx >= 0 ? 1 : -1;
               l1.x += pushX * signX;
-              l2.x -= pushX * signX;
+              if (!l2.isCustomPosition) l2.x -= pushX * signX;
             }
           }
         }
@@ -642,6 +764,8 @@ export default function Workspace({
       // Resolve labels with node obstacles (so they guide smoothly around content cards)
       for (let i = 0; i < resolvedCoords.length; i++) {
         const l = resolvedCoords[i];
+        if (l.isCustomPosition) continue;
+
         for (const obs of nodeObstacles) {
           const safetyX = 14;
           const safetyY = 10;
@@ -1136,6 +1260,16 @@ export default function Workspace({
           });
         }
 
+        // PABX Badge in SVG export if configured and not hidden
+        if ((node.properties?.hasPabxOption || node.properties?.phoneType === 'Mobile PBU') && !node.properties?.hidePabxBadge && !node.properties?.hideBadges && !node.properties?.hideMetadata) {
+          svgContent += `
+            <g transform="translate(${nx + nw - 55}, ${ny + nh - 21})">
+              <rect width="45" height="13" rx="3" fill="#fee2e2" stroke="#fca5a5" stroke-width="0.8" />
+              <text x="22.5" text-anchor="middle" y="9.5" fill="#991b1b" font-size="7.5" font-weight="900" font-family="sans-serif, Arial">PABX</text>
+            </g>
+          `;
+        }
+
         // Bottom type label badge unless hideMetadata
         if (!node.properties?.hideMetadata) {
           svgContent += `
@@ -1283,6 +1417,17 @@ export default function Workspace({
               <span>{isFullscreen ? "Quitter Plein Écran" : "Plein Écran"}</span>
             </button>
           )}
+
+          {/* Tutorial button */}
+          <button
+            id="btn-open-tutorial-top"
+            onClick={() => setIsTutorialOpen(true)}
+            className="flex items-center gap-1 font-extrabold px-2.5 py-1 rounded-lg text-[9.5px] uppercase tracking-wide transition-all shadow-3xs hover:shadow-2xs active:scale-95 cursor-pointer border ml-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-200/80"
+            title="Afficher le tutoriel d'utilisation, gestes interactifs et raccourcis"
+          >
+            <HelpCircle size={11} className="text-indigo-600" />
+            <span>Tutoriel</span>
+          </button>
         </div>
 
         <div className="flex items-center gap-3.5 flex-wrap">
@@ -1368,6 +1513,15 @@ export default function Workspace({
                   <span>Activer la Démo Acme Corp</span>
                 </button>
               )}
+
+              <button
+                id="btn-open-tutorial-empty"
+                onClick={() => setIsTutorialOpen(true)}
+                className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 border border-slate-250 shadow-2xs cursor-pointer hover:border-indigo-300 hover:text-indigo-700"
+              >
+                <HelpCircle size={15} className="text-indigo-600" />
+                <span>Tutoriel d'utilisation &amp; Raccourcis</span>
+              </button>
             </div>
           </div>
         )}
@@ -1526,11 +1680,52 @@ export default function Workspace({
 
             const hasVisibleLabels = currentLabels.some(lbl => lbl && lbl.trim() !== "");
 
+            const handleLabelMouseDown = (e: React.MouseEvent) => {
+              const target = e.target as HTMLElement;
+              if (target.closest('input, select, option, button')) {
+                return;
+              }
+              e.stopPropagation();
+              e.preventDefault();
+
+              if (containerRef.current) {
+                const rect = containerRef.current.getBoundingClientRect();
+                const mouseX = (e.clientX - rect.left + containerRef.current.scrollLeft) / zoom;
+                const mouseY = (e.clientY - rect.top + containerRef.current.scrollTop) / zoom;
+
+                const currentOffsetX = conn.labelOffset?.x ?? (l.x - l.origX);
+                const currentOffsetY = conn.labelOffset?.y ?? (l.y - l.origY);
+
+                setDraggingLabelId(conn.id);
+                setDragLabelStartMouse({ x: mouseX, y: mouseY });
+                setDragLabelInitialOffset({ x: currentOffsetX, y: currentOffsetY });
+              }
+            };
+
+            const handleLabelDoubleClick = (e: React.MouseEvent) => {
+              const target = e.target as HTMLElement;
+              if (target.closest('input, select, option, button')) {
+                return;
+              }
+              e.stopPropagation();
+              e.preventDefault();
+              setDraggingLabelId(null);
+              // Double click resets label position to automatic midpoint
+              onUpdateConnectionLabel(conn.id, conn.label, conn.labels, null);
+            };
+
+            const isDraggingThisLabel = draggingLabelId === conn.id;
+
             return (
               <div
                 key={`label-${conn.id}`}
-                className="absolute transform -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-1.5 text-[10px] text-slate-700 transition-all duration-200 select-none"
+                onMouseDown={handleLabelMouseDown}
+                onDoubleClick={handleLabelDoubleClick}
+                className={`absolute transform -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-1.5 text-[10px] text-slate-700 select-none cursor-grab active:cursor-grabbing transition-all duration-150 ${
+                  isDraggingThisLabel ? 'scale-105 shadow-md z-30' : ''
+                }`}
                 style={{ left: l.x, top: l.y }}
+                title="Glissez-déposez pour déplacer l'étiquette. Double-cliquez pour la réinitialiser."
               >
                 {hasVisibleLabels && (
                   <div className="flex flex-col gap-1 items-center">
@@ -1646,6 +1841,7 @@ export default function Workspace({
                 id={`node-${node.id}`}
                 key={node.id}
                 onMouseDown={(e) => handleNodeMouseDown(e, node)}
+                onMouseUp={(e) => drawingConnSourceId && drawingConnSourceId !== node.id ? completeConnection(e, node.id) : null}
                 onMouseEnter={(e) => handleNodeMouseEnter(e, node)}
                 onMouseMove={handleNodeMouseMove}
                 onMouseLeave={handleNodeMouseLeave}
@@ -1771,7 +1967,7 @@ export default function Workspace({
                   )}
 
                   {/* Row of badges/indicators for advanced features */}
-                  {(node.properties?.nodeStatus || node.properties?.forwardType || node.properties?.keyConfig || node.properties?.targetPlatform) && !node.properties?.hideBadges && (
+                  {(node.properties?.nodeStatus || node.properties?.forwardType || node.properties?.keyConfig || node.properties?.targetPlatform || ((node.properties?.hasPabxOption || node.properties?.phoneType === 'Mobile PBU') && !node.properties?.hidePabxBadge)) && !node.properties?.hideBadges && (
                     <div className="flex flex-wrap gap-1 select-none pointer-events-none">
                       {node.properties.nodeStatus && (
                         <span className={`inline-flex items-center gap-0.5 text-[7px] font-black px-1 rounded-xs border leading-tight ${
@@ -1808,6 +2004,12 @@ export default function Workspace({
                         </span>
                       )}
 
+                      {(node.properties.hasPabxOption || node.properties.phoneType === 'Mobile PBU') && !node.properties.hidePabxBadge && (
+                        <span className="inline-flex items-center gap-0.5 text-[7px] font-black px-1 py-0.5 rounded-xs bg-red-600 text-white shadow-2xs" title={`Option PABX Mobile (${node.properties.pabxOperator || 'SFR PBU'})`}>
+                          <span className="uppercase text-[6.5px] font-extrabold">PABX</span>
+                        </span>
+                      )}
+
                       {node.properties.keyConfig && (
                         <span className="inline-flex items-center gap-0.5 text-[7px] font-black px-1 rounded-xs bg-purple-500/10 border border-purple-500/25 text-purple-850" title="Touche Physique ou BLF rattachée">
                           <span>🔑</span>
@@ -1841,20 +2043,22 @@ export default function Workspace({
                 <div
                   id={`inlet-${node.id}`}
                   onClick={(e) => drawingConnSourceId ? completeConnection(e, node.id) : null}
+                  onMouseUp={(e) => drawingConnSourceId ? completeConnection(e, node.id) : null}
                   className={`absolute -left-1.5 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border bg-white focus:outline-none transition-all z-35 cursor-pointer ${
                     drawingConnSourceId 
                       ? 'border-blue-500 bg-blue-105 ring-4 ring-blue-550/20 animate-pulse scale-125' 
                       : 'border-slate-300 hover:bg-slate-100 hover:border-slate-450 hover:scale-125'
                   }`}
-                  title={drawingConnSourceId ? "Cliquez pour brancher le commutateur ici" : "Port d'entrée direct d'appels"}
+                  title={drawingConnSourceId ? "Relâchez ou cliquez pour brancher la connexion ici" : "Port d'entrée direct d'appels"}
                 />
 
                 {/* 2. Emitting Outlet button/dot on right border (Allows drawing a connection line) - perfectly centered vertically */}
                 <button
                   id={`outlet-${node.id}`}
                   onMouseDown={(e) => startDrawingConnection(e, node.id)}
+                  onMouseUp={(e) => drawingConnSourceId && drawingConnSourceId !== node.id ? completeConnection(e, node.id) : null}
                   className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border border-slate-300 bg-white hover:bg-[#2563eb] hover:border-[#2563eb] hover:scale-125 transition-all z-35 flex items-center justify-center cursor-crosshair group-hover:scale-110"
-                  title="Faites glisser ou cliquez pour créer une liaison sortante"
+                  title="Faites glisser et relâchez sur un autre nœud pour créer une liaison"
                 >
                   <div className="w-1.5 h-1.5 bg-slate-400 rounded-full hover:bg-white" />
                 </button>
@@ -1883,6 +2087,12 @@ export default function Workspace({
           )}
         </div>
       </div>
+
+      {/* Interactive Usage Tutorial Modal */}
+      <TutorialModal
+        isOpen={isTutorialOpen}
+        onClose={() => setIsTutorialOpen(false)}
+      />
     </div>
   );
 }

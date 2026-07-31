@@ -314,9 +314,18 @@ export default function App() {
     }));
   };
 
-  const handleUpdateConnectionLabel = (id: string, label: string, labels?: string[]) => {
+  const handleUpdateConnectionLabel = (id: string, label: string, labels?: string[], labelOffset?: { x: number; y: number } | null) => {
     updateProjectState(prev => {
-      const updatedConns = prev.connections.map(c => c.id === id ? { ...c, label, labels: labels || c.labels } : c);
+      const updatedConns = prev.connections.map(c => {
+        if (c.id !== id) return c;
+        const newOffset = labelOffset === null ? undefined : (labelOffset !== undefined ? labelOffset : c.labelOffset);
+        return {
+          ...c,
+          label,
+          labels: labels || c.labels,
+          labelOffset: newOffset
+        };
+      });
       return { ...prev, connections: updatedConns };
     });
   };

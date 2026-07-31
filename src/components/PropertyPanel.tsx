@@ -391,6 +391,7 @@ export default function PropertyPanel({
                 >
                   <option value="IP">Poste Fixe IP</option>
                   <option value="DECT">Poste Mobile DECT</option>
+                  <option value="Mobile PBU">Mobile SFR (Option PABX PBU)</option>
                   <option value="Softphone">Softphone Logiciel</option>
                   <option value="Analogique">Extension Analogique</option>
                 </select>
@@ -544,6 +545,75 @@ export default function PropertyPanel({
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Option PABX Mobile (ex: SFR PBU / Convergence Fixe-Mobile) */}
+        {(node.type === 'user_station' || node.type === 'mobile_external' || node.type === 'direct_line' || node.type === 'incoming_num' || localProps.phoneType === 'Mobile PBU') && (
+          <div className="space-y-2.5 p-3 bg-gradient-to-r from-red-50/80 to-amber-50/80 rounded-lg border border-red-200/70 font-medium text-xs shadow-2xs">
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 cursor-pointer font-extrabold text-slate-800 text-[11px]">
+                <input
+                  type="checkbox"
+                  checked={!!localProps.hasPabxOption || localProps.phoneType === 'Mobile PBU'}
+                  onChange={(e) => {
+                    handlePropertyChange('hasPabxOption', e.target.checked);
+                    if (e.target.checked && !localProps.pabxOperator) {
+                      handlePropertyChange('pabxOperator', 'SFR Business (PBU)');
+                    }
+                  }}
+                  className="w-4 h-4 rounded text-red-600 focus:ring-red-500 border-slate-300 cursor-pointer"
+                />
+                <span>Option PABX Mobile (SFR PBU)</span>
+              </label>
+              <span className="text-[8px] bg-red-600 text-white font-black px-1.5 py-0.5 rounded uppercase">PBU / SFR</span>
+            </div>
+
+            {(localProps.hasPabxOption || localProps.phoneType === 'Mobile PBU') && (
+              <div className="space-y-2 pt-2 border-t border-red-200/50 animate-fade-in text-[11px]">
+                <p className="text-[10px] text-slate-600 leading-tight">
+                  Intégration PABX / IPBX sur ligne mobile (Poste Business Unifié SFR, transferts, supervision, routage convergent).
+                </p>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <label className="text-[9px] text-slate-600 block font-bold uppercase">Opérateur / Offre</label>
+                    <select
+                      value={localProps.pabxOperator || 'SFR Business (PBU)'}
+                      onChange={(e) => handlePropertyChange('pabxOperator', e.target.value)}
+                      className="w-full border border-slate-300 rounded px-2 py-1 bg-white text-slate-800 text-xs font-semibold"
+                    >
+                      <option value="SFR Business (PBU)">SFR Business (PBU)</option>
+                      <option value="Orange Business">Orange Business</option>
+                      <option value="Bouygues Telecom Entreprises">Bouygues Telecom</option>
+                      <option value="Autre Opérateur PABX">Autre Opérateur PABX</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[9px] text-slate-600 block font-bold uppercase">N° Mobile Associé</label>
+                    <input
+                      type="text"
+                      placeholder="ex: 06 12 34 56 78"
+                      value={localProps.pabxMobileNumber || localProps.number || ''}
+                      onChange={(e) => handlePropertyChange('pabxMobileNumber', e.target.value)}
+                      className="w-full border border-slate-300 rounded px-2 py-1 bg-white font-mono text-xs font-bold text-slate-800"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[9px] text-slate-600 block font-bold uppercase">Profil & Options PABX Mobile</label>
+                  <input
+                    type="text"
+                    placeholder="ex: Convergence Fixe-Mobile PBU, Supervision & Transfert PABX"
+                    value={localProps.pabxOptionDetails || ''}
+                    onChange={(e) => handlePropertyChange('pabxOptionDetails', e.target.value)}
+                    className="w-full border border-slate-300 rounded px-2 py-1 bg-white text-xs font-semibold text-slate-800"
+                  />
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -1282,6 +1352,18 @@ export default function PropertyPanel({
               />
               <span>Masquer la description</span>
             </label>
+
+            {(localProps.hasPabxOption || localProps.phoneType === 'Mobile PBU') && (
+              <label className="flex items-center gap-2 text-red-700 font-semibold cursor-pointer text-[11px] hover:text-red-900 bg-red-50 p-1.5 rounded border border-red-200">
+                <input
+                  type="checkbox"
+                  checked={localProps.hidePabxBadge || false}
+                  onChange={(e) => handlePropertyChange('hidePabxBadge', e.target.checked)}
+                  className="rounded border-slate-300 text-red-600 focus:ring-red-500 w-3.5 h-3.5 cursor-pointer"
+                />
+                <span>Masquer le badge PABX</span>
+              </label>
+            )}
 
             <label className="flex items-center gap-2 text-slate-600 font-semibold cursor-pointer text-[11px] hover:text-slate-800">
               <input

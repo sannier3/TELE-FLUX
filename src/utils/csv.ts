@@ -33,6 +33,8 @@ export function exportUsersToCSV(users: DirectoryUser[]): string {
     { key: 'sdaId', label: 'SDA Associée' },
     { key: 'stationType', label: 'Type de Poste' },
     { key: 'phoneModel', label: 'Modèle Téléphone' },
+    { key: 'hasPabxOption', label: 'Option PABX SFR PBU (Vrai/Faux)' },
+    { key: 'pabxOperator', label: 'Opérateur PABX' },
     { key: 'voicemailEnabled', label: 'Messagerie Activée (Vrai/Faux)' },
     { key: 'forwardEnabled', label: 'Renvoi Activé (Vrai/Faux)' },
     { key: 'forwardDestination', label: 'Destination du Renvoi' },
@@ -47,6 +49,7 @@ export function exportLinesToCSV(lines: PhoneLine[]): string {
     { key: 'type', label: 'Type de Ligne' },
     { key: 'channels', label: 'Canaux Simultanés' },
     { key: 'provider', label: 'Opérateur' },
+    { key: 'hasPabxOption', label: 'Option PABX (Vrai/Faux)' },
     { key: 'comment', label: 'Notes Techniques' }
   ];
   return exportToCSV(lines, headers);
