@@ -1,5 +1,5 @@
 {
   "name": "Télé-Flux",
-  "description": "Conception de schémas d'appels et architectures télécoms. Solution créée avec l'aide de l'IA pour faciliter la création de schémas détaillés.",
+  "description": "Conception, simulation et export de schémas de routage télécom (PABX / IPBX) : SVI, SDA, groupements, messageries et horaires.",
   "requestFramePermissions": []
 }
