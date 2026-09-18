@@ -3,8 +3,8 @@
  */
 
 import React, { useMemo, useState } from 'react';
-import { X, GitCompare, Camera, History, Eye, RotateCcw } from 'lucide-react';
-import { ProjectSnapshot, TelecomProject } from '../types';
+import { X, GitCompare, Camera, History, Eye, RotateCcw, Trash2 } from 'lucide-react';
+import { TelecomProject } from '../types';
 import { diffSnapshots, formatLogDate } from '../utils/changelog';
 
 interface HistoryCompareModalProps {
@@ -17,6 +17,7 @@ interface HistoryCompareModalProps {
   onReturnToCurrent: () => void;
   onOverwriteSnapshot: (id: string) => void;
   onSaveAsNewFromView: (label?: string) => void;
+  onDeleteSnapshot: (id: string) => void;
 }
 
 export default function HistoryCompareModal({
@@ -29,6 +30,7 @@ export default function HistoryCompareModal({
   onReturnToCurrent,
   onOverwriteSnapshot,
   onSaveAsNewFromView,
+  onDeleteSnapshot,
 }: HistoryCompareModalProps) {
   const snapshots = [...(project.snapshots || [])].reverse();
   const [leftId, setLeftId] = useState('');
@@ -43,6 +45,13 @@ export default function HistoryCompareModal({
     if (!left || !right) return null;
     return diffSnapshots(left, right);
   }, [left, right]);
+
+  const handleDelete = (id: string, label: string) => {
+    if (!window.confirm(`Supprimer l’instantané « ${label} » ? Cette action est définitive.`)) return;
+    if (leftId === id) setLeftId('');
+    if (rightId === id) setRightId('');
+    onDeleteSnapshot(id);
+  };
 
   if (!isOpen) return null;
 
@@ -65,7 +74,9 @@ export default function HistoryCompareModal({
         {viewingSnapshotId && (
           <div className="px-5 py-2.5 bg-amber-50 border-b border-amber-200 text-[11px] text-amber-950 flex flex-wrap items-center gap-2 justify-between">
             <span>
-              Consultation de <b>{viewing?.label || 'instantané'}</b>. Les modifications ne sont pas le dernier état connu tant que vous n&apos;enregistrez pas.
+              Consultation de <b>{viewing?.label || 'instantané'}</b>
+              {viewing?.at ? <> ({formatLogDate(viewing.at)})</> : null}.
+              Les modifications ne sont pas le dernier état connu tant que vous n&apos;enregistrez pas.
             </span>
             <div className="flex flex-wrap gap-1.5">
               <button
@@ -140,19 +151,32 @@ export default function HistoryCompareModal({
                     >
                       <div className="min-w-0">
                         <div className="text-[11px] font-semibold text-slate-800 truncate">{s.label}</div>
+                        <div className="text-[10px] text-slate-600 font-medium mt-0.5">
+                          {formatLogDate(s.at)}
+                        </div>
                         <div className="text-[10px] text-slate-400">
-                          {formatLogDate(s.at)} · {s.data.nodes.length} nœuds
+                          {s.data.nodes.length} nœuds · {s.data.connections.length} liaisons
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => onViewSnapshot(s.id)}
-                        disabled={active}
-                        className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-slate-200 text-[10px] font-bold text-slate-700 hover:bg-slate-50 cursor-pointer disabled:opacity-40"
-                      >
-                        <Eye size={12} />
-                        Voir
-                      </button>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => onViewSnapshot(s.id)}
+                          disabled={active}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-slate-200 text-[10px] font-bold text-slate-700 hover:bg-slate-50 cursor-pointer disabled:opacity-40"
+                        >
+                          <Eye size={12} />
+                          Voir
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(s.id, s.label)}
+                          className="inline-flex items-center justify-center p-1.5 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 cursor-pointer"
+                          title="Supprimer cet instantané"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
                     </div>
                   );
                 })
@@ -175,7 +199,7 @@ export default function HistoryCompareModal({
                 >
                   <option value="">— Choisir —</option>
                   {(project.snapshots || []).map((s) => (
-                    <option key={s.id} value={s.id}>{s.label}</option>
+                    <option key={s.id} value={s.id}>{s.label} — {formatLogDate(s.at)}</option>
                   ))}
                 </select>
               </div>
@@ -188,7 +212,7 @@ export default function HistoryCompareModal({
                 >
                   <option value="">— Choisir —</option>
                   {(project.snapshots || []).map((s) => (
-                    <option key={s.id} value={s.id}>{s.label}</option>
+                    <option key={s.id} value={s.id}>{s.label} — {formatLogDate(s.at)}</option>
                   ))}
                 </select>
               </div>

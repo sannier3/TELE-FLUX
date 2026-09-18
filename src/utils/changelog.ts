@@ -14,9 +14,11 @@ export function formatLogDate(iso: string): string {
   try {
     return new Date(iso).toLocaleString('fr-FR', {
       day: '2-digit',
-      month: 'short',
+      month: '2-digit',
+      year: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
+      second: '2-digit',
     });
   } catch {
     return iso;
@@ -82,6 +84,14 @@ export function overwriteSnapshot(
       : s
   );
   return { ...project, snapshots, updatedAt: at };
+}
+
+export function deleteSnapshot(
+  project: TelecomProject,
+  snapshotId: string
+): TelecomProject {
+  const snapshots = (project.snapshots || []).filter((s) => s.id !== snapshotId);
+  return { ...project, snapshots, updatedAt: nowIso() };
 }
 
 export function bumpVersion(project: TelecomProject): TelecomProject {

@@ -486,6 +486,25 @@ body {
   background-color: #f0f4f8;
   background-image: radial-gradient(var(--grid-dot) 1px, transparent 1px);
   background-size: 20px 20px;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+.tf-canvas-grid img,
+.glass-node svg {
+  -webkit-user-drag: none;
+  user-select: none;
+  pointer-events: none;
+}
+
+/* Pendant une sélection rectangle : pas de scroll fluide ni de sélection native */
+.tf-selecting-box {
+  scroll-behavior: auto !important;
+  cursor: crosshair !important;
+}
+
+.tf-selecting-box .glass-node {
+  pointer-events: none;
 }
 
 .tf-toolbar {

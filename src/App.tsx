@@ -13,8 +13,9 @@ import PreviewSection from './components/PreviewSection';
 import { TelecomProject, CallNode, Connection, NodeType, PhoneLine, DirectoryUser, ReusableTemplate, CanvasAnnotation } from './types';
 import { BLANK_PROJECT, DEMO_PROJECT, NODE_METADATA } from './utils/templates';
 import { TYPE_CHANGE_CARRIED_KEYS, migrateLoadedProject } from './utils/nodeDisplay';
-import { createSnapshot, bumpVersion, applySnapshotData, overwriteSnapshot } from './utils/changelog';
+import { createSnapshot, bumpVersion, applySnapshotData, overwriteSnapshot, deleteSnapshot } from './utils/changelog';
 import { openPdfReport } from './utils/pdfReport';
+import { buildExportFilename } from './utils/exportFilename';
 import HistoryCompareModal from './components/HistoryCompareModal';
 import { Trash2, CheckCircle, Info, X, ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react';
 
@@ -402,6 +403,29 @@ export default function App() {
     setViewingSnapshotId(null);
   };
 
+  const handleDeleteSnapshot = (snapshotId: string) => {
+    // Si on consultait cet instantané, revenir d'abord à l'état actuel
+    if (viewingSnapshotId === snapshotId) {
+      const checkout = historyCheckoutRef.current;
+      if (checkout) {
+        const restored = {
+          ...JSON.parse(JSON.stringify(checkout)),
+          snapshots: (project.snapshots || []).filter((s) => s.id !== snapshotId),
+        };
+        historyCheckoutRef.current = null;
+        setViewingSnapshotId(null);
+        setProject(restored);
+        setPast([]);
+        setFuture([]);
+        setUnsavedChanges(true);
+        localStorage.setItem('teleflux_project_save', JSON.stringify(restored));
+        return;
+      }
+    }
+
+    updateProjectState((prev) => deleteSnapshot(prev, snapshotId));
+  };
+
   const handleChangeNodeType = (id: string, newType: NodeType) => {
     updateProjectState(prev => {
       const meta = NODE_METADATA[newType];
@@ -559,34 +583,15 @@ export default function App() {
 
   // Global Actions: JSON Exporter
   const handleExportJSON = () => {
-    const slug = (value?: string) =>
-      (value || '')
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '_')
-        .replace(/^_+|_+$/g, '');
-
-    const parts = [
+    const filename = buildExportFilename(
+      {
+        projectName: project.projectName,
+        clientName: project.clientName,
+        siteName: project.siteName,
+      },
       'teleflux_schema',
-      slug(project.projectName) || 'projet',
-      slug(project.clientName) || null,
-      slug(project.siteName) || null,
-    ].filter(Boolean);
-
-    const now = new Date();
-    const pad = (n: number) => String(n).padStart(2, '0');
-    const datetime = [
-      now.getFullYear(),
-      pad(now.getMonth() + 1),
-      pad(now.getDate()),
-      '_',
-      pad(now.getHours()),
-      pad(now.getMinutes()),
-      pad(now.getSeconds()),
-    ].join('');
-
-    const filename = `${parts.join('_')}_${datetime}.json`;
+      'json'
+    );
 
     const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(project, null, 2));
     const downloadAnchor = document.createElement('a');
@@ -739,9 +744,17 @@ export default function App() {
         <div className="shrink-0 px-4 py-2 bg-amber-50 border-b border-amber-200 text-[11px] text-amber-950 flex flex-wrap items-center gap-2 justify-between z-30">
           <span>
             Consultation d&apos;un instantané
-            {project.snapshots?.find((s) => s.id === viewingSnapshotId)?.label
-              ? <> : <b>{project.snapshots.find((s) => s.id === viewingSnapshotId)!.label}</b></>
-              : null}
+            {(() => {
+              const snap = project.snapshots?.find((s) => s.id === viewingSnapshotId);
+              if (!snap) return null;
+              return (
+                <>
+                  {' '}
+                  : <b>{snap.label}</b>
+                  <span className="text-amber-800/80 font-medium"> ({new Date(snap.at).toLocaleString('fr-FR')})</span>
+                </>
+              );
+            })()}
             . Modifiez si besoin, puis enregistrez ou revenez à l&apos;état actuel.
           </span>
           <div className="flex flex-wrap gap-1.5">
@@ -831,6 +844,11 @@ export default function App() {
                   setIsSidebarOpen(true);
                 }
               }}
+              exportMeta={{
+                projectName: project.projectName,
+                clientName: project.clientName,
+                siteName: project.siteName,
+              }}
             />
 
             <div
@@ -884,6 +902,7 @@ export default function App() {
         onReturnToCurrent={handleReturnToCurrent}
         onOverwriteSnapshot={handleOverwriteViewedSnapshot}
         onSaveAsNewFromView={handleSaveAsNewFromView}
+        onDeleteSnapshot={handleDeleteSnapshot}
       />
 
       {modalConfig && modalConfig.isOpen && (

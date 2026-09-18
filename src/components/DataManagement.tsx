@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { TelecomProject, PhoneLine, DirectoryUser, ReusableTemplate, NodeType } from '../types';
 import { PHONE_MODELS, PROVIDERS } from '../utils/templates';
+import { buildExportFilename } from '../utils/exportFilename';
 import { 
   BRANDS, 
   YEALINK_MODELS, 
@@ -141,17 +142,17 @@ export default function DataManagement({
   // CSV Exporters
   const downloadUsersCSV = () => {
     const csvContent = exportUsersToCSV(project.users);
-    triggerDownload(csvContent, `teleflux_poste_utilisateurs_${project.clientName || 'client'}.csv`);
+    triggerDownload(csvContent, buildExportFilename(project, 'teleflux_postes', 'csv'));
   };
 
   const downloadLinesCSV = () => {
     const csvContent = exportLinesToCSV(project.lines);
-    triggerDownload(csvContent, `teleflux_lignes_trunks_${project.clientName || 'client'}.csv`);
+    triggerDownload(csvContent, buildExportFilename(project, 'teleflux_lignes', 'csv'));
   };
 
   const downloadSdaCSV = () => {
     const csvContent = exportSDAsToCSV(project.nodes);
-    triggerDownload(csvContent, `teleflux_numeros_sda_${project.clientName || 'client'}.csv`);
+    triggerDownload(csvContent, buildExportFilename(project, 'teleflux_sda', 'csv'));
   };
 
   const triggerDownload = (content: string, filename: string) => {

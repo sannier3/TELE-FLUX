@@ -60,6 +60,16 @@ import {
 } from '../utils/nodeDisplay';
 import { getDescendantIds, getHiddenNodeIds } from '../utils/graphHelpers';
 import CanvasNavTools from './CanvasNavTools';
+import {
+  buildExportFilename,
+  triggerBlobDownload,
+  triggerDataUrlDownload,
+  ExportNameMeta,
+} from '../utils/exportFilename';
+import {
+  buildDesignerSchemaSvg,
+  rasterizeSvgToPng,
+} from '../utils/schemaExportSvg';
 
 interface WorkspaceProps {
   nodes: CallNode[];
@@ -83,6 +93,8 @@ interface WorkspaceProps {
   onDragStart?: () => void;
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
+  /** Métadonnées pour le nom des fichiers exportés */
+  exportMeta?: ExportNameMeta;
 }
 
 export default function Workspace({
@@ -106,7 +118,8 @@ export default function Workspace({
   onLoadDemo,
   onDragStart,
   isFullscreen = false,
-  onToggleFullscreen
+  onToggleFullscreen,
+  exportMeta = {},
 }: WorkspaceProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const hasMovedNode = useRef(false);
@@ -127,6 +140,7 @@ export default function Workspace({
   const [annotationMode, setAnnotationMode] = useState(false);
   const [drawingAnnot, setDrawingAnnot] = useState<{ x: number; y: number } | null>(null);
   const [viewportBox, setViewportBox] = useState({ left: 0, top: 0, w: 2000, h: 1200 });
+  const [renderAllForExport, setRenderAllForExport] = useState(false);
 
   const hiddenIds = React.useMemo(
     () => getHiddenNodeIds(collapsedNodeIds, connections, nodes),
@@ -214,7 +228,7 @@ export default function Workspace({
   };
 
   const nodesInView = React.useMemo(() => {
-    if (livePositions) return visibleNodes;
+    if (renderAllForExport || livePositions) return visibleNodes;
     return visibleNodes.filter((n) => {
       const pos = getResolvedPos(n);
       return (
@@ -224,7 +238,7 @@ export default function Workspace({
         && pos.y <= viewportBox.top + viewportBox.h
       );
     });
-  }, [visibleNodes, viewportBox, livePositions]);
+  }, [visibleNodes, viewportBox, livePositions, renderAllForExport]);
 
   React.useLayoutEffect(() => {
     const newHeights: Record<string, number> = {};
@@ -296,6 +310,29 @@ export default function Workspace({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  React.useEffect(() => {
+    if (!selectionBoxStart) return;
+
+    const onWinMouseUp = () => {
+      setSelectionBoxStart(null);
+      setSelectionBoxCurrent(null);
+      setInitialSelectedIdsAtBoxStart([]);
+      clearSelectionInteractionStyles();
+    };
+    const onWinBlur = () => onWinMouseUp();
+
+    window.addEventListener('mouseup', onWinMouseUp);
+    window.addEventListener('blur', onWinBlur);
+    return () => {
+      window.removeEventListener('mouseup', onWinMouseUp);
+      window.removeEventListener('blur', onWinBlur);
+    };
+  }, [selectionBoxStart]);
+
+  React.useEffect(() => {
+    return () => clearSelectionInteractionStyles();
   }, []);
 
   const handleWorkspaceClick = (e: React.MouseEvent) => {
@@ -402,14 +439,23 @@ export default function Workspace({
   };
 
   const handleContainerMouseDown = (e: React.MouseEvent) => {
-    const isBg = e.target === containerRef.current || 
-                 (e.target as HTMLElement).id === 'grid-svg' || 
-                 (e.target as HTMLElement).id === 'grid-canvas-stage';
+    // Clic molette / bouton du milieu = pan natif éventuel : on ne démarre pas la sélection
+    if (e.button !== 0) return;
+
+    const target = e.target as HTMLElement;
+    const isBg = e.target === containerRef.current
+      || target.id === 'grid-svg'
+      || target.id === 'grid-canvas-stage'
+      || target.classList?.contains('tf-canvas-grid');
     if (!isBg) return;
 
-    if (drawingConnSourceId) return;
-
+    if (drawingConnSourceId || annotationMode) return;
     if (!containerRef.current) return;
+
+    // Empêche la sélection native / le drag « image » du canevas entier
+    e.preventDefault();
+    e.stopPropagation();
+
     const rect = containerRef.current.getBoundingClientRect();
     const mouseX = (e.clientX - rect.left + containerRef.current.scrollLeft) / zoom;
     const mouseY = (e.clientY - rect.top + containerRef.current.scrollTop) / zoom;
@@ -417,6 +463,8 @@ export default function Workspace({
     setSelectionBoxStart({ x: mouseX, y: mouseY });
     setSelectionBoxCurrent({ x: mouseX, y: mouseY });
     isSelectionBoxDragging.current = false;
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'crosshair';
 
     const isShiftPressed = e.shiftKey || e.ctrlKey || e.metaKey;
     const currentSelected = [...selectedNodeIds];
@@ -427,9 +475,16 @@ export default function Workspace({
     }
   };
 
+  const clearSelectionInteractionStyles = () => {
+    document.body.style.userSelect = '';
+    document.body.style.cursor = '';
+  };
+
   const handleNodeMouseDown = (e: React.MouseEvent, node: CallNode) => {
     if (drawingConnSourceId) return; // Don't drag if drawing connection
+    if (e.button !== 0) return;
     e.stopPropagation();
+    e.preventDefault(); // évite le drag natif des icônes SVG
     
     let nextSelectedIds = [...selectedNodeIds];
     const isShiftPressed = e.shiftKey || e.ctrlKey || e.metaKey;
@@ -654,6 +709,7 @@ export default function Workspace({
     setSelectionBoxStart(null);
     setSelectionBoxCurrent(null);
     setInitialSelectedIdsAtBoxStart([]);
+    clearSelectionInteractionStyles();
   };
 
   const triggerRepulsionAnimation = () => {
@@ -1115,316 +1171,55 @@ export default function Workspace({
     "fin d'appel / raccroché"
   ];
 
-  // High quality matching HEX colors for SVG elements matching the telecom themes
-  const getColorScheme = (color: string) => {
-    switch (color) {
-      case 'emerald':
-        return { fill: '#f0fdf4', stroke: '#10b981', header: '#059669', badgeBg: '#d1fae5', badgeTxt: '#065f46' };
-      case 'teal':
-        return { fill: '#f0fdfa', stroke: '#14b8a6', header: '#0d9488', badgeBg: '#ccfbf1', badgeTxt: '#115e59' };
-      case 'blue':
-        return { fill: '#eff6ff', stroke: '#3b82f6', header: '#2563eb', badgeBg: '#dbeafe', badgeTxt: '#1e40af' };
-      case 'sky':
-        return { fill: '#f0f9ff', stroke: '#0ea5e9', header: '#0284c7', badgeBg: '#e0f2fe', badgeTxt: '#0369a1' };
-      case 'indigo':
-        return { fill: '#f5f3ff', stroke: '#6366f1', header: '#4f46e5', badgeBg: '#e0e7ff', badgeTxt: '#3730a3' };
-      case 'amber':
-        return { fill: '#fffbeb', stroke: '#f59e0b', header: '#d97706', badgeBg: '#fef3c7', badgeTxt: '#92400e' };
-      case 'yellow':
-        return { fill: '#fefce8', stroke: '#eab308', header: '#ca8a04', badgeBg: '#fef9c3', badgeTxt: '#854d0e' };
-      case 'orange':
-        return { fill: '#fff7ed', stroke: '#f97316', header: '#ea580c', badgeBg: '#ffedd5', badgeTxt: '#9a3412' };
-      case 'violet':
-        return { fill: '#faf5ff', stroke: '#8b5cf6', header: '#7c3aed', badgeBg: '#f3e8ff', badgeTxt: '#6b21a8' };
-      case 'purple':
-        return { fill: '#faf5ff', stroke: '#a855f7', header: '#9333ea', badgeBg: '#f3e8ff', badgeTxt: '#6b21a8' };
-      case 'fuchsia':
-        return { fill: '#fdf4ff', stroke: '#d946ef', header: '#c026d3', badgeBg: '#fae8ff', badgeTxt: '#86198f' };
-      case 'pink':
-        return { fill: '#fdf2f8', stroke: '#ec4899', header: '#db2777', badgeBg: '#fce7f3', badgeTxt: '#9d174d' };
-      case 'slate':
-      default:
-        return { fill: '#f8fafc', stroke: '#64748b', header: '#475569', badgeBg: '#e2e8f0', badgeTxt: '#334155' };
-    }
-  };
+  const exportAsImage = async (format: 'png' | 'svg') => {
+    if (nodes.length === 0) return;
 
-  const exportAsImage = (format: 'png' | 'svg') => {
+    const { flushSync } = await import('react-dom');
+    const prevSelected = selectedNodeId;
+
+    flushSync(() => {
+      setRenderAllForExport(true);
+      onSelectNode(null);
+      onSelectNodes?.([]);
+    });
+
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    });
+
     try {
-      if (nodes.length === 0) return;
-
-      // 2. Escape XML helper
-      const escapeXml = (unsafe: string) => {
-        return unsafe.replace(/[<>&'"]/g, (c) => {
-          switch (c) {
-            case '<': return '&lt;';
-            case '>': return '&gt;';
-            case '&': return '&amp;';
-            case '\'': return '&apos;';
-            case '"': return '&quot;';
-            default: return c;
-          }
-        });
-      };
-
-      const wrapTextWithNewlines = (text: string, maxChars: number): string[] => {
-        if (!text) return [];
-        const sourceLines = text.split('\n');
-        const result: string[] = [];
-        for (const sLine of sourceLines) {
-          if (!sLine.trim()) {
-            result.push('');
-            continue;
-          }
-          const words = sLine.split(/\s+/);
-          let currentLine = '';
-          for (const word of words) {
-            if (!currentLine) {
-              currentLine = word;
-            } else if ((currentLine + ' ' + word).length <= maxChars) {
-              currentLine += ' ' + word;
-            } else {
-              result.push(currentLine);
-              currentLine = word;
-            }
-          }
-          if (currentLine) {
-            result.push(currentLine);
-          }
-        }
-        return result;
-      };
-
-      // 1. Compute bounds with dynamic node heights
-      const computedXs = nodes.map(n => n.x);
-      const computedYs = nodes.map(n => n.y);
-      const rawMinX = Math.min(...computedXs);
-      const rawMinY = Math.min(...computedYs);
-      const rawMaxX = Math.max(...computedXs) + 190;
-
-      // Find actual rawMaxY taking into account dynamic heights of nodes
-      let rawMaxY = Math.max(...computedYs) + 110;
-      nodes.forEach(node => {
-        const titleLines = wrapTextWithNewlines(node.name, 22);
-        const detailLine1 = !node.properties?.hidePrimaryDetails ? getNodePrimaryLine(node) : '';
-        const detailLine2 = getNodeSecondaryLine(node) || '';
-
-        const d1Lines = wrapTextWithNewlines(detailLine1, 26);
-        const d2Lines = wrapTextWithNewlines(detailLine2, 30);
-
-        let totalTextHeight = titleLines.length * 14;
-        if (d1Lines.length > 0) totalTextHeight += 4 + d1Lines.length * 12;
-        if (d2Lines.length > 0) totalTextHeight += 4 + d2Lines.length * 11;
-
-        const nh = Math.max(110, 46 + totalTextHeight + 24);
-        const bottomEdge = node.y + nh;
-        if (bottomEdge > rawMaxY) {
-          rawMaxY = bottomEdge;
-        }
+      const heights: Record<string, number> = { ...domHeights };
+      visibleNodes.forEach((n) => {
+        const el = document.getElementById('node-' + n.id);
+        if (el && el.offsetHeight > 0) heights[n.id] = el.offsetHeight;
       });
 
-      const padding = 60;
-      const minX = rawMinX - padding;
-      const minY = rawMinY - padding;
-      const width = Math.max(250, rawMaxX - rawMinX + (padding * 2));
-      const height = Math.max(150, rawMaxY - rawMinY + (padding * 2));
-
-      // 3. SVG Head and Defs
-      let svgContent = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" style="background-color: #ffffff;">`;
-      svgContent += `
-        <defs>
-          <marker id="arrow-readonly" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-            <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#64748b" />
-          </marker>
-        </defs>
-      `;
-
-      // 4. Render connection curves
-      connections.forEach(conn => {
-        const src = nodes.find(n => n.id === conn.sourceId);
-        const tgt = nodes.find(n => n.id === conn.targetId);
-        if (!src || !tgt) return;
-
-        const startX = src.x + 190 - minX;
-        const startY = src.y + 45 - minY;
-        const endX = tgt.x - minX;
-        const endY = tgt.y + 45 - minY;
-
-        const dx = Math.max(70, Math.abs(endX - startX) * 0.45);
-        const pathData = `M ${startX} ${startY} C ${startX + dx} ${startY}, ${endX - dx} ${endY}, ${endX} ${endY}`;
-
-        svgContent += `<path d="${pathData}" fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#arrow-readonly)" />`;
+      const { svg, width, height } = buildDesignerSchemaSvg({
+        nodes: visibleNodes,
+        connections: visibleConnections,
+        annotations,
+        heights,
+        padding: 48,
+        background: '#ffffff',
       });
 
-      // 5. Render connection labels
-      resolvedLabels.forEach(label => {
-        const validLabels = ((label.connection.labels && label.connection.labels.length > 0) 
-          ? label.connection.labels 
-          : [label.connection.label]).filter(Boolean) as string[];
+      if (!svg) return;
 
-        if (validLabels.length === 0) return;
+      const filename = buildExportFilename(exportMeta, 'teleflux_schema', format);
 
-        const lx = label.x - minX;
-        const ly = label.y - minY;
-        const pillHeight = 16;
-        const pillGap = 4;
-        const totalHeight = validLabels.length * pillHeight + (validLabels.length - 1) * pillGap;
-        const startY = ly - totalHeight / 2;
-
-        const maxLen = Math.max(...validLabels.map(l => l.length));
-        const pillWidth = maxLen * 5.8 + 14;
-
-        validLabels.forEach((lbl, idx) => {
-          const py = startY + idx * (pillHeight + pillGap);
-          svgContent += `
-            <g>
-              <rect x="${lx - pillWidth / 2}" y="${py}" width="${pillWidth}" height="${pillHeight}" rx="4" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2" />
-              <text x="${lx}" y="${py + 11.5}" text-anchor="middle" fill="#0f766e" font-size="8.5" font-family="sans-serif, Arial" font-weight="extrabold">${escapeXml(lbl)}</text>
-            </g>
-          `;
-        });
-      });
-
-      // 6. Render individual blocks (nodes)
-      nodes.forEach(node => {
-        const meta = NODE_METADATA[node.type];
-        if (!meta) return;
-        const scheme = getColorScheme(meta.color || 'slate');
-
-        const nx = node.x - minX;
-        const ny = node.y - minY;
-        const nw = 190;
-
-        // Compute text lines for layout and height
-        const titleLines = wrapTextWithNewlines(node.name, 22);
-        const detailLine1 = !node.properties?.hidePrimaryDetails ? getNodePrimaryLine(node) : '';
-        const detailLine2 = getNodeSecondaryLine(node) || '';
-
-        const d1Lines = wrapTextWithNewlines(detailLine1, 26);
-        const d2Lines = wrapTextWithNewlines(detailLine2, 30);
-
-        let totalTextHeight = titleLines.length * 14;
-        if (d1Lines.length > 0) totalTextHeight += 4 + d1Lines.length * 12;
-        if (d2Lines.length > 0) totalTextHeight += 4 + d2Lines.length * 11;
-
-        const nh = Math.max(110, 46 + totalTextHeight + 24);
-
-        // Card base & Decorative left band
-        svgContent += `
-          <g>
-            <rect x="${nx}" y="${ny}" width="${nw}" height="${nh}" rx="12" fill="${scheme.fill}" stroke="${scheme.stroke}" stroke-width="2" />
-            <path d="M ${nx + 1.5} ${ny + 12} A 10.5 10.5 0 0 1 ${nx + 12} ${ny + 1.5} L ${nx + 12} ${ny + 1.5} L ${nx + 12} ${ny + nh - 1.5} L ${nx + 12} ${ny + nh - 1.5} A 10.5 10.5 0 0 1 ${nx + 1.5} ${ny + nh - 12} Z" fill="${scheme.header}" />
-            <text x="${nx + 18}" y="${ny + 22}" fill="${scheme.header}" font-size="9" font-weight="900" font-family="sans-serif, Arial" letter-spacing="0.8">${meta.label.toUpperCase()}</text>
-        `;
-
-        // Extension Badge (export SVG uniquement si détaillé)
-        if (node.properties?.internalNumber && getDisplayDensity(node) === 'detailed' && !node.properties?.hidePrimaryDetails) {
-          svgContent += `
-            <g transform="translate(${nx + nw - 10}, ${ny + 16})">
-              <rect x="-62" y="-8" width="62" height="16" rx="4" fill="#e2e8f0" stroke="#cbd5e1" stroke-width="1" />
-              <text x="-31" text-anchor="middle" y="4" fill="#334155" font-size="8.5" font-weight="bold" font-family="sans-serif, Arial">N°${node.properties.internalNumber}</text>
-            </g>
-          `;
-        }
-
-        // Draw dynamic text lines with perfect offsets
-        let currentY = ny + 46;
-
-        titleLines.forEach((line) => {
-          svgContent += `
-            <text x="${nx + 18}" y="${currentY}" fill="#0f172a" font-size="12" font-weight="900" font-family="sans-serif, Arial">${escapeXml(line)}</text>
-          `;
-          currentY += 14;
-        });
-
-        if (d1Lines.length > 0) {
-          currentY += 4;
-          d1Lines.forEach((line) => {
-            svgContent += `
-              <text x="${nx + 18}" y="${currentY}" fill="#334155" font-size="10" font-family="sans-serif, Arial" font-weight="bold">${escapeXml(line)}</text>
-            `;
-            currentY += 12;
-          });
-        }
-
-        if (d2Lines.length > 0) {
-          currentY += 4;
-          d2Lines.forEach((line) => {
-            svgContent += `
-              <text x="${nx + 18}" y="${currentY}" fill="#475569" font-size="9" font-family="sans-serif, Arial" font-weight="medium">${escapeXml(line)}</text>
-            `;
-            currentY += 11;
-          });
-        }
-
-        // PABX Badge in SVG export if configured and not hidden
-        if ((node.properties?.hasPabxOption || node.properties?.phoneType === 'Mobile PBU') && !node.properties?.hidePabxBadge && !node.properties?.hideBadges && !node.properties?.hideMetadata) {
-          svgContent += `
-            <g transform="translate(${nx + nw - 55}, ${ny + nh - 21})">
-              <rect width="45" height="13" rx="3" fill="#fee2e2" stroke="#fca5a5" stroke-width="0.8" />
-              <text x="22.5" text-anchor="middle" y="9.5" fill="#991b1b" font-size="7.5" font-weight="900" font-family="sans-serif, Arial">PABX</text>
-            </g>
-          `;
-        }
-
-        // Bottom type label badge unless hideMetadata
-        if (!node.properties?.hideMetadata) {
-          svgContent += `
-            <g transform="translate(${nx + 18}, ${ny + nh - 21})">
-              <rect width="90" height="13" rx="3" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="0.5" />
-              <text x="6" y="9.5" fill="#64748b" font-size="7.5" font-weight="bold" font-family="sans-serif, Arial">${meta.label.toUpperCase()}</text>
-              <text x="164" y="9.5" text-anchor="end" fill="#94a3b8" font-size="7" font-family="monospace, Courier">x:${node.x} y:${node.y}</text>
-            </g>
-          `;
-        }
-
-        svgContent += `</g>`;
-      });
-
-      svgContent += `</svg>`;
-
-      // 7. Perform Action based on format
       if (format === 'svg') {
-        const blob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `schema_telecom_${Date.now()}.svg`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
+        triggerBlobDownload(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }), filename);
       } else {
-        // PNG export
-        const blob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const img = new window.Image();
-        const scale = 4.0; // HD scaling
-        img.width = width * scale;
-        img.height = height * scale;
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          canvas.width = width * scale;
-          canvas.height = height * scale;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            
-            const pngUrl = canvas.toDataURL('image/png', 1.0);
-            const link = document.createElement('a');
-            link.href = pngUrl;
-            link.download = `schema_telecom_${Date.now()}.png`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-          }
-          URL.revokeObjectURL(url);
-        };
-        img.src = url;
+        const pngUrl = await rasterizeSvgToPng(svg, width, height, 3);
+        triggerDataUrlDownload(pngUrl, filename);
       }
     } catch (e) {
       console.error('Failed to export:', e);
+    } finally {
+      flushSync(() => {
+        setRenderAllForExport(false);
+        if (prevSelected) onSelectNode(prevSelected);
+      });
     }
   };
 
@@ -1594,10 +1389,19 @@ export default function Workspace({
         onMouseDown={handleContainerMouseDown}
         onMouseMove={handleWorkspaceMouseMove}
         onMouseUp={handleWorkspaceMouseUp}
+        onMouseLeave={(e) => {
+          // Si on relâche hors zone, mouseup peut manquer : on termine la sélection
+          if (selectionBoxStart && e.buttons === 0) {
+            handleWorkspaceMouseUp(e);
+          }
+        }}
         onClick={handleWorkspaceClick}
-        className="flex-1 overflow-auto relative scrollbar-thin scroll-smooth animate-fade-in bg-[#f0f4f8]"
+        onDragStart={(e) => e.preventDefault()}
+        className={`flex-1 overflow-auto relative scrollbar-thin animate-fade-in bg-[#f0f4f8] select-none ${
+          selectionBoxStart ? 'tf-selecting-box' : ''
+        }`}
         id="panning-canvas-container"
-        style={{ cursor: drawingConnSourceId ? 'cell' : 'default' }}
+        style={{ cursor: drawingConnSourceId ? 'cell' : selectionBoxStart ? 'crosshair' : 'default' }}
       >
         {/* Render clean empty state warning overlay if workspace has 0 nodes */}
         {nodes.length === 0 && (
@@ -1653,15 +1457,18 @@ export default function Workspace({
         )}
 
         <div 
-          className="tf-canvas-grid relative"
+          className="tf-canvas-grid relative select-none"
           id="grid-canvas-stage"
+          draggable={false}
+          onDragStart={(e) => e.preventDefault()}
           style={{
             width: canvasSize.width,
             height: canvasSize.height,
             transform: `scale(${zoom})`,
             transformOrigin: '0 0',
             cursor: annotationMode ? 'crosshair' : undefined,
-          }}
+            WebkitUserDrag: 'none',
+          } as React.CSSProperties}
           onMouseDown={(e) => {
             if (!annotationMode || !onUpdateAnnotations) return;
             if ((e.target as HTMLElement).closest('[id^="node-"], [id^="outlet-"], [id^="inlet-"]')) return;

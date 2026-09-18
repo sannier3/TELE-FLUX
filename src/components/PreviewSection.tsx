@@ -20,6 +20,7 @@ import { TelecomProject, CallNode, Connection } from '../types';
 import { NODE_METADATA } from '../utils/templates';
 import { distributionModeLabel } from '../data/telephonyOptions';
 import { hasPositiveTimeout, getNodePrimaryLine } from '../utils/nodeDisplay';
+import { buildExportFilename, triggerBlobDownload, triggerDataUrlDownload } from '../utils/exportFilename';
 
 // Helper component to render a beautifully designed visual vector flowchart diagram in read-only reports
 function FlowchartReadonlyVisual({ project, showDownload = false }: { project: TelecomProject; showDownload?: boolean }) {
@@ -423,16 +424,8 @@ function FlowchartReadonlyVisual({ project, showDownload = false }: { project: T
       
       const xmlHeader = '<?xml version="1.0" encoding="utf-8"?>\n';
       const svgBlob = new Blob([xmlHeader + source], { type: 'image/svg+xml;charset=utf-8' });
-      const svgUrl = URL.createObjectURL(svgBlob);
-      
-      const downloadLink = document.createElement('a');
-      downloadLink.href = svgUrl;
-      const safeName = (project.projectName || 'telecom').toLowerCase().replace(/[^a-z0-9]+/g, '_');
-      downloadLink.download = `schema_${safeName}.svg`;
-      document.body.appendChild(downloadLink);
-      downloadLink.click();
-      document.body.removeChild(downloadLink);
-      URL.revokeObjectURL(svgUrl);
+      const filename = buildExportFilename(project, 'teleflux_schema', 'svg');
+      triggerBlobDownload(svgBlob, filename);
     } catch (e) {
       console.error('Failed to download SVG:', e);
     }
@@ -477,13 +470,8 @@ function FlowchartReadonlyVisual({ project, showDownload = false }: { project: T
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
           
           const pngUrl = canvas.toDataURL('image/png', 1.0);
-          const downloadLink = document.createElement('a');
-          downloadLink.href = pngUrl;
-          const safeName = (project.projectName || 'telecom').toLowerCase().replace(/[^a-z0-9]+/g, '_');
-          downloadLink.download = `schema_${safeName}.png`;
-          document.body.appendChild(downloadLink);
-          downloadLink.click();
-          document.body.removeChild(downloadLink);
+          const filename = buildExportFilename(project, 'teleflux_schema', 'png');
+          triggerDataUrlDownload(pngUrl, filename);
         }
         URL.revokeObjectURL(svgUrl);
       };

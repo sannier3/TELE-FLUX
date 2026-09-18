@@ -5,6 +5,7 @@
 import { TelecomProject } from '../types';
 import { NODE_METADATA } from './templates';
 import { distributionModeLabel } from '../data/telephonyOptions';
+import { buildDesignerSchemaSvg } from './schemaExportSvg';
 
 function esc(s: string): string {
   return String(s || '')
@@ -15,44 +16,22 @@ function esc(s: string): string {
 }
 
 function buildSchemaSvg(project: TelecomProject, maxW = 720, maxH = 320): string {
-  const nodes = project.nodes;
-  if (!nodes.length) {
+  const { svg, width, height } = buildDesignerSchemaSvg({
+    nodes: project.nodes,
+    connections: project.connections,
+    annotations: project.annotations,
+    padding: 24,
+  });
+  if (!svg) {
     return `<p style="color:#94a3b8;font-size:11px;font-style:italic">Aucun nœud sur le schéma.</p>`;
   }
-  const pad = 24;
-  const minX = Math.min(...nodes.map((n) => n.x)) - pad;
-  const minY = Math.min(...nodes.map((n) => n.y)) - pad;
-  const maxX = Math.max(...nodes.map((n) => n.x + 190)) + pad;
-  const maxY = Math.max(...nodes.map((n) => n.y + 90)) + pad;
-  const vbW = Math.max(1, maxX - minX);
-  const vbH = Math.max(1, maxY - minY);
-
-  const lines = project.connections
-    .map((c) => {
-      const s = nodes.find((n) => n.id === c.sourceId);
-      const t = nodes.find((n) => n.id === c.targetId);
-      if (!s || !t) return '';
-      const x1 = s.x + 190 - minX;
-      const y1 = s.y + 45 - minY;
-      const x2 = t.x - minX;
-      const y2 = t.y + 45 - minY;
-      const dx = Math.max(40, Math.abs(x2 - x1) * 0.4);
-      return `<path d="M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}" fill="none" stroke="#94a3b8" stroke-width="2"/>`;
-    })
-    .join('');
-
-  const rects = nodes
-    .map((n) => {
-      const nx = n.x - minX;
-      const ny = n.y - minY;
-      const label = esc(n.name).slice(0, 28);
-      return `<rect x="${nx}" y="${ny}" width="190" height="72" rx="8" fill="#f8fafc" stroke="#0d9488" stroke-width="1.5"/>
-        <text x="${nx + 10}" y="${ny + 28}" font-size="11" font-family="system-ui,sans-serif" fill="#0f172a" font-weight="700">${label}</text>
-        <text x="${nx + 10}" y="${ny + 48}" font-size="9" font-family="system-ui,sans-serif" fill="#64748b">${esc(NODE_METADATA[n.type]?.label || n.type)}</text>`;
-    })
-    .join('');
-
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${vbW} ${vbH}" width="${maxW}" height="${maxH}" style="max-width:100%;height:auto;border:1px solid #e2e8f0;border-radius:8px;background:#fff">${lines}${rects}</svg>`;
+  const displayH = Math.min(maxH, Math.round(maxW * (height / Math.max(width, 1))));
+  return svg
+    .replace(/<\?xml[^>]*>\s*/i, '')
+    .replace(
+      /width="[^"]*" height="[^"]*" viewBox="[^"]*"/,
+      `viewBox="0 0 ${width} ${height}" width="${maxW}" height="${displayH}" style="max-width:100%;height:auto;border:1px solid #e2e8f0;border-radius:8px;background:#fff"`
+    );
 }
 
 function stationsTable(project: TelecomProject): string {
