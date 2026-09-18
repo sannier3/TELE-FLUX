@@ -1,33 +1,25 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  FileText, 
-  Printer, 
   Play, 
-  Smartphone, 
-  ArrowRight, 
   Layers, 
-  RefreshCw, 
-  HelpCircle, 
-  User, 
-  Users, 
   Check, 
   AlertTriangle, 
-  Sliders, 
   ChevronRight, 
   Activity,
   ClipboardCheck,
-  ShieldCheck,
   Download,
   Image,
   PhoneOff
 } from 'lucide-react';
 import { TelecomProject, CallNode, Connection } from '../types';
 import { NODE_METADATA } from '../utils/templates';
+import { distributionModeLabel } from '../data/telephonyOptions';
+import { hasPositiveTimeout, getNodePrimaryLine } from '../utils/nodeDisplay';
 
 // Helper component to render a beautifully designed visual vector flowchart diagram in read-only reports
 function FlowchartReadonlyVisual({ project, showDownload = false }: { project: TelecomProject; showDownload?: boolean }) {
@@ -502,9 +494,9 @@ function FlowchartReadonlyVisual({ project, showDownload = false }: { project: T
   };
 
   return (
-    <div className="w-full bg-slate-50 border border-slate-200 p-5 rounded-2xl shadow-2xs mt-4 print:bg-white print:border-none print:p-0 print:shadow-none select-none">
+    <div className="w-full bg-slate-50 border border-slate-200 p-5 rounded-2xl shadow-sm mt-4 print:bg-white print:border-none print:p-0 print:shadow-none select-none">
       {/* Interactive Control Header block */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 print:hidden mb-4 bg-white p-3.5 rounded-xl border border-slate-150">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 print:hidden mb-4 bg-white p-3.5 rounded-xl border border-slate-100">
         <div className="space-y-0.5">
           <div className="flex items-center gap-2">
             <div className="w-2.5 h-2.5 rounded-full bg-blue-600 animate-pulse" />
@@ -518,10 +510,10 @@ function FlowchartReadonlyVisual({ project, showDownload = false }: { project: T
         <div className="flex flex-wrap items-center gap-2.5">
           {/* Quick high-quality downloads if showDownload is requested */}
           {showDownload && (
-            <div className="flex items-center bg-slate-150 p-0.5 rounded-lg border border-slate-200 gap-1 mr-1">
+            <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 gap-1 mr-1">
               <button
                 onClick={handleDownloadSVG}
-                className="px-2.5 py-1.5 rounded-md text-[10px] font-extrabold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-all cursor-pointer flex items-center gap-1"
+                className="px-2.5 py-1.5 rounded-md text-[10px] font-extrabold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all cursor-pointer flex items-center gap-1"
                 title="Exporter le schéma au format vectoriel .SVG (sans perte de qualité)"
               >
                 <Download size={11} />
@@ -529,7 +521,7 @@ function FlowchartReadonlyVisual({ project, showDownload = false }: { project: T
               </button>
               <button
                 onClick={handleDownloadPNG}
-                className="px-2.5 py-1.5 rounded-md text-[10px] font-extrabold bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition-all cursor-pointer flex items-center gap-1"
+                className="px-2.5 py-1.5 rounded-md text-[10px] font-extrabold bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-all cursor-pointer flex items-center gap-1"
                 title="Exporter le schéma au format image haute définition .PNG (2.5x)"
               >
                 <Image size={11} />
@@ -543,7 +535,7 @@ function FlowchartReadonlyVisual({ project, showDownload = false }: { project: T
             <button
               onClick={() => setLayoutMode('auto-horizontal')}
               className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
-                layoutMode === 'auto-horizontal' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                layoutMode === 'auto-horizontal' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'
               }`}
               title="Alignement parfait de gauche à droite"
             >
@@ -552,7 +544,7 @@ function FlowchartReadonlyVisual({ project, showDownload = false }: { project: T
             <button
               onClick={() => setLayoutMode('auto-vertical')}
               className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
-                layoutMode === 'auto-vertical' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                layoutMode === 'auto-vertical' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'
               }`}
               title="Cascade descendante étape par étape"
             >
@@ -561,7 +553,7 @@ function FlowchartReadonlyVisual({ project, showDownload = false }: { project: T
             <button
               onClick={() => setLayoutMode('manual')}
               className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
-                layoutMode === 'manual' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                layoutMode === 'manual' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'
               }`}
               title="Utiliser l'agencement libre dessiné sur la grille de construction"
             >
@@ -574,7 +566,7 @@ function FlowchartReadonlyVisual({ project, showDownload = false }: { project: T
             <button
               onClick={() => setDetailLevel('client')}
               className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
-                detailLevel === 'client' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                detailLevel === 'client' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
               }`}
               title="Affiche les extensions internes, poste IP, NDIs et paramètres complets"
             >
@@ -583,7 +575,7 @@ function FlowchartReadonlyVisual({ project, showDownload = false }: { project: T
             <button
               onClick={() => setDetailLevel('simple')}
               className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
-                detailLevel === 'simple' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                detailLevel === 'simple' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
               }`}
               title="Affiche uniquement les noms de blocs essentiels"
             >
@@ -594,7 +586,7 @@ function FlowchartReadonlyVisual({ project, showDownload = false }: { project: T
       </div>
 
       {/* Dotted vector SVG canvas container */}
-      <div className="overflow-x-auto border border-slate-200 bg-white rounded-xl shadow-xs print:border-slate-300">
+      <div className="overflow-x-auto border border-slate-200 bg-white rounded-xl shadow-sm print:border-slate-300">
         <svg 
           ref={svgRef}
           viewBox={`${minX} ${minY} ${width} ${height}`} 
@@ -746,9 +738,10 @@ function FlowchartReadonlyVisual({ project, showDownload = false }: { project: T
                 break;
               }
               case 'call_group':
-                detailLine1 = `Group Ext: ${node.properties.internalNumber || 'Simultané'}`;
-                if (node.properties.delayBeforeForward) {
-                  detailLine2 = `Délai: ${node.properties.delayBeforeForward}s`;
+              case 'queue':
+                detailLine1 = `${node.type === 'queue' ? 'File' : 'Groupe'}: ${node.properties.internalNumber || '—'} · ${distributionModeLabel(node.properties.groupType)}`;
+                if (node.properties.delayBeforeForward && node.properties.delayBeforeForward > 0) {
+                  detailLine2 = `Timeout: ${node.properties.delayBeforeForward}s`;
                 } else {
                   detailLine2 = node.properties.description || '';
                 }
@@ -784,6 +777,10 @@ function FlowchartReadonlyVisual({ project, showDownload = false }: { project: T
               case 'hangup':
                 detailLine1 = `Fin d'appel`;
                 detailLine2 = `Raccroché immédiat`;
+                break;
+              case 'junction':
+                detailLine1 = 'Nœud de liaison';
+                detailLine2 = 'Jonction multi-entrées / multi-sorties';
                 break;
               default:
                 if (node.properties.number) {
@@ -965,905 +962,639 @@ function FlowchartReadonlyVisual({ project, showDownload = false }: { project: T
 
 interface PreviewSectionProps {
   project: TelecomProject;
-  validationAlerts: { id: string; type: 'error' | 'warning'; message: string; nodeId?: string }[];
+  validationAlerts: { id: string; type: "error" | "warning"; message: string; nodeId?: string }[];
+  onExportPdf?: () => void;
 }
 
-type PreviewView = 'client' | 'tech' | 'incoming' | 'station' | 'simulator' | 'schema_only';
+const ENTRY_TYPES = new Set(["ndi", "sda", "nds", "incoming_num", "direct_line", "sip_trunk"]);
 
-export default function PreviewSection({ project, validationAlerts }: PreviewSectionProps) {
-  const [activeView, setActiveView] = useState<PreviewView>('client');
+type PreviewView = "summary" | "simulator" | "schema";
 
-  // Text summary auto-generation
-  const [textSummary, setTextSummary] = useState('');
+function isEntryNode(type: string) {
+  return ENTRY_TYPES.has(type);
+}
 
-  // Simulator states
-  const [selectedIncomingNodeId, setSelectedIncomingNodeId] = useState<string>('');
+function formatNumber(node: CallNode) {
+  return node.properties.number || node.properties.associatedSda || "—";
+}
+
+export default function PreviewSection({ project, validationAlerts, onExportPdf }: PreviewSectionProps) {
+  const [activeView, setActiveView] = useState<PreviewView>("summary");
+  const [selectedIncomingNodeId, setSelectedIncomingNodeId] = useState("");
   const [simActive, setSimActive] = useState(false);
-  const [simCurrentNodeId, setSimCurrentNodeId] = useState<string>('');
+  const [simCurrentNodeId, setSimCurrentNodeId] = useState("");
   const [simLogs, setSimLogs] = useState<string[]>([]);
   const [simStepsCount, setSimStepsCount] = useState(0);
+  const [simTimeMode, setSimTimeMode] = useState<"day" | "night">("day");
+  const [simCallOutcome, setSimCallOutcome] = useState<"answered" | "busy" | "no_answer">("answered");
 
-  // Vue Filtres states
-  const [filterSDA, setFilterSDA] = useState<string>('');
-  const [filterStation, setFilterStation] = useState<string>('');
+  const entryNodes = useMemo(
+    () => project.nodes.filter((n) => isEntryNode(n.type)),
+    [project.nodes]
+  );
 
-  // Generate text summary based on flowchart on mount/updating
+  const stations = useMemo(
+    () => project.nodes.filter((n) =>
+      n.type === "user_station"
+      || n.type === "switchboard"
+      || n.type === "extension"
+      || n.type === "softphone"
+      || n.type === "mobile_pbu"
+      || n.type === "direct_line"
+    ),
+    [project.nodes]
+  );
+
+  const softphones = useMemo(() => project.nodes.filter((n) => n.type === "softphone"), [project.nodes]);
+  const mobiles = useMemo(() => project.nodes.filter((n) => n.type === "mobile_pbu" || n.type === "mobile_external"), [project.nodes]);
+
+  const ivrs = useMemo(() => project.nodes.filter((n) => n.type === "ivr"), [project.nodes]);
+  const queues = useMemo(
+    () => project.nodes.filter((n) => n.type === "queue" || n.type === "call_group"),
+    [project.nodes]
+  );
+
   useEffect(() => {
-    generateFlowchartSummary();
-    
-    // Auto populate simulator dropdown with first sda or incoming number
-    const entrance = project.nodes.find(n => n.type === 'sda' || n.type === 'incoming_num');
-    if (entrance && !selectedIncomingNodeId) {
-      setSelectedIncomingNodeId(entrance.id);
+    if (!selectedIncomingNodeId && entryNodes.length > 0) {
+      setSelectedIncomingNodeId(entryNodes[0].id);
+    } else if (selectedIncomingNodeId && !entryNodes.some((n) => n.id === selectedIncomingNodeId)) {
+      setSelectedIncomingNodeId(entryNodes[0]?.id || "");
     }
-  }, [project]);
+  }, [entryNodes, selectedIncomingNodeId]);
 
-  const generateFlowchartSummary = () => {
-    if (project.nodes.length === 0) {
-      setTextSummary("Le schéma d'appel est actuellement vide. Ajoutez des blocs dans l'onglet Conception.");
-      return;
+  const describeTarget = (target: CallNode) => {
+    const p = target.properties || {};
+    const meta = NODE_METADATA[target.type];
+    const bits: string[] = [];
+
+    if (target.type === "user_station" || target.type === "softphone" || target.type === "direct_line") {
+      bits.push(getNodePrimaryLine(target));
+      if (target.type === "softphone") bits.push("softphone");
+      return bits.filter(Boolean).join(" · ");
     }
-
-    let summaryLines: string[] = [];
-    summaryLines.push(`=== RÉSUMÉ DU SCÉNARIO TÉLÉCOMS : ${project.projectName} ===`);
-    summaryLines.push(`Client : ${project.clientName} | Site rattaché : ${project.siteName}`);
-    summaryLines.push(`Généré le : ${new Date().toLocaleDateString('fr-FR')} par ${project.author || 'Télé-Flux'}`);
-    summaryLines.push('---------------------------------------------------------');
-
-    // Find entry points
-    const entryNodes = project.nodes.filter(n => n.type === 'sda' || n.type === 'incoming_num' || n.type === 'ndi');
-    
-    if (entryNodes.length === 0) {
-      summaryLines.push("[!] Attention : Aucun numéro d'arrivée ou racine d'appel n'a été détecté.");
-    } else {
-      entryNodes.forEach(entry => {
-        summaryLines.push(`\n📞 POINT D'ENTRÉE : ${entry.name} (${entry.properties.number || '01XXXXXXXX'})`);
-        if (entry.properties.description) {
-          summaryLines.push(`   Description: ${entry.properties.description}`);
-        }
-        
-        describePathFromNode(entry.id, '   ', summaryLines, new Set<string>());
-      });
+    if (target.type === "switchboard") {
+      return `Standard ${p.internalNumber || "9"}${p.userName ? ` — ${p.userName}` : ""}`;
     }
-
-    // Add list of terminals
-    summaryLines.push('\n---------------------------------------------------------');
-    summaryLines.push(`📂 RÉPERTOIRE & PARC DE TERMINAUX (${project.users.length} postes) :`);
-    project.users.forEach(u => {
-      summaryLines.push(` - Poste ${u.internalNumber} : ${u.name} | Matériel: ${u.phoneModel} (${u.stationType})`);
-      if (u.sdaId) summaryLines.push(`   * Rattaché à la SDA: ${u.sdaId}`);
-      if (u.voicemailEnabled) summaryLines.push(`   * Messagerie vocale : Active`);
-      if (u.forwardEnabled && u.forwardDestination) summaryLines.push(`   * Renvoi automatique actif vers : ${u.forwardDestination}`);
-    });
-
-    setTextSummary(summaryLines.join('\n'));
+    if (target.type === "mobile_pbu") {
+      return getNodePrimaryLine(target);
+    }
+    if (target.type === "ivr") {
+      const opts: string[] = [`SVI « ${target.name} »`];
+      if (p.audioMessageName) opts.push(p.audioMessageName);
+      if (hasPositiveTimeout(p.digitTimeout)) opts.push(`DTMF ${p.digitTimeout}s`);
+      return opts.join(" · ");
+    }
+    if (target.type === "queue" || target.type === "call_group") {
+      const opts: string[] = [target.name];
+      opts.push(distributionModeLabel(p.groupType));
+      if (p.internalNumber) opts.push(`Ext ${p.internalNumber}`);
+      if (hasPositiveTimeout(p.delayBeforeForward)) opts.push(`timeout ${p.delayBeforeForward}s`);
+      if (hasPositiveTimeout(p.agentRingTimeout)) opts.push(`sonnerie ${p.agentRingTimeout}s`);
+      if (p.overflowAction) opts.push(`débord. → ${p.overflowAction}`);
+      if (p.maxCallersInQueue != null && p.maxCallersInQueue > 0) opts.push(`max ${p.maxCallersInQueue}`);
+      return opts.join(" · ");
+    }
+    if (target.type === "voicemail") return `Messagerie ${target.name}${p.internalNumber ? ` (${p.internalNumber})` : ""}`;
+    if (target.type.startsWith("forward_") || target.type === "transfer") {
+      const t = `Renvoi → ${p.forwardDestination || target.name}`;
+      return hasPositiveTimeout(p.delayBeforeForward) ? `${t} (${p.delayBeforeForward}s)` : t;
+    }
+    if (target.type === "day_night" || target.type === "time_range" || target.type === "holiday") {
+      return `${meta?.label || target.type}${p.timeSchedule ? ` · ${p.timeSchedule}` : ""}`;
+    }
+    if (target.type === "sip_trunk") return getNodePrimaryLine(target);
+    if (target.type === "hangup") return target.properties.hangupCause || "Raccroché";
+    if (target.type === "junction") return `Liaison « ${target.name} »`;
+    return target.name;
   };
 
-  const describePathFromNode = (nodeId: string, indent: string, lines: string[], visited: Set<string>) => {
+  const nodeAccent = (type: string) => {
+    const color = NODE_METADATA[type as keyof typeof NODE_METADATA]?.color || "slate";
+    const map: Record<string, { bar: string; chip: string; text: string; soft: string }> = {
+      emerald: { bar: "bg-emerald-500", chip: "bg-emerald-100 text-emerald-800 border-emerald-200", text: "text-emerald-700", soft: "bg-emerald-50 border-emerald-100" },
+      teal: { bar: "bg-teal-500", chip: "bg-teal-100 text-teal-800 border-teal-200", text: "text-teal-700", soft: "bg-teal-50 border-teal-100" },
+      amber: { bar: "bg-amber-500", chip: "bg-amber-100 text-amber-900 border-amber-200", text: "text-amber-800", soft: "bg-amber-50 border-amber-100" },
+      yellow: { bar: "bg-yellow-500", chip: "bg-yellow-100 text-yellow-900 border-yellow-200", text: "text-yellow-800", soft: "bg-yellow-50 border-yellow-100" },
+      orange: { bar: "bg-orange-500", chip: "bg-orange-100 text-orange-900 border-orange-200", text: "text-orange-800", soft: "bg-orange-50 border-orange-100" },
+      sky: { bar: "bg-sky-500", chip: "bg-sky-100 text-sky-800 border-sky-200", text: "text-sky-700", soft: "bg-sky-50 border-sky-100" },
+      cyan: { bar: "bg-cyan-500", chip: "bg-cyan-100 text-cyan-800 border-cyan-200", text: "text-cyan-700", soft: "bg-cyan-50 border-cyan-100" },
+      rose: { bar: "bg-rose-500", chip: "bg-rose-100 text-rose-800 border-rose-200", text: "text-rose-700", soft: "bg-rose-50 border-rose-100" },
+      violet: { bar: "bg-violet-500", chip: "bg-violet-100 text-violet-800 border-violet-200", text: "text-violet-700", soft: "bg-violet-50 border-violet-100" },
+      indigo: { bar: "bg-indigo-500", chip: "bg-indigo-100 text-indigo-800 border-indigo-200", text: "text-indigo-700", soft: "bg-indigo-50 border-indigo-100" },
+      blue: { bar: "bg-blue-500", chip: "bg-blue-100 text-blue-800 border-blue-200", text: "text-blue-700", soft: "bg-blue-50 border-blue-100" },
+      slate: { bar: "bg-slate-500", chip: "bg-slate-100 text-slate-800 border-slate-200", text: "text-slate-700", soft: "bg-slate-50 border-slate-200" },
+    };
+    return map[color] || map.slate;
+  };
+
+  type PathLine = {
+    depth: number;
+    text: string;
+    kind: "step" | "loop" | "end";
+  };
+
+  const isCallEndNode = (node: CallNode) =>
+    node.type === "hangup";
+
+  const buildPathLines = (nodeId: string, depth: number, lines: PathLine[], visited: Set<string>) => {
     if (visited.has(nodeId)) {
-      lines.push(`${indent}🔁 [BOUCLE INSERÉE / RENSEIGNEMENT DE SECURITÉ] Retour à un élément déjà traité.`);
+      lines.push({ depth, text: "↺ boucle détectée", kind: "loop" });
       return;
     }
     visited.add(nodeId);
-
-    const conns = project.connections.filter(c => c.sourceId === nodeId);
+    const conns = project.connections.filter((c) => c.sourceId === nodeId);
     if (conns.length === 0) {
-      lines.push(`${indent}🛑 [FIN DU FLUX - Pas d'aiguillage sortant]`);
+      // Feuille sans suite : pas de ligne « fin » — sauf si le nœud courant est un hangup
+      // (déjà affiché en amont comme étape). On s'arrête simplement.
       return;
     }
-
-    conns.forEach(conn => {
-      const target = project.nodes.find(n => n.id === conn.targetId);
+    conns.forEach((conn) => {
+      const target = project.nodes.find((n) => n.id === conn.targetId);
       if (!target) return;
-
-      const meta = NODE_METADATA[target.type];
-      let details = '';
-      
-      if (target.type === 'user_station') {
-        details = `Poste ${target.properties.internalNumber || ''} de ${target.properties.userName || target.name}`;
-      } else if (target.type === 'voicemail') {
-        details = `Messagerie ${target.properties.internalNumber || ''} (audio: ${target.properties.audioMessageName || 'standard'})`;
-      } else if (target.type === 'ivr') {
-        details = `Menu Serveur Vocal (SVI) "${target.name}"`;
-      } else if (target.type === 'transfer' || target.type.startsWith('forward_')) {
-        details = `Redirection vers ${target.properties.forwardDestination || 'Inconnu'}`;
-      } else if (target.type === 'day_night') {
-        details = `Plan horaires (${target.properties.timeSchedule || '24h'})`;
-      } else if (target.properties.number) {
-        details = `Numéro ${target.properties.number}`;
-      } else {
-        details = `${target.name}`;
+      const label = conn.label || "suite";
+      const desc = describeTarget(target);
+      if (isCallEndNode(target)) {
+        lines.push({
+          depth,
+          text: `→ [${label}] ${desc}`,
+          kind: "end",
+        });
+        // Pas de descente : c'est la fin d'appel
+        return;
       }
-
-      lines.push(`${indent}➔ [Option: ${conn.label}] ⇨ ${meta?.label || target.type} : ${details}`);
-      describePathFromNode(target.id, indent + '   ', lines, new Set(visited));
+      lines.push({
+        depth,
+        text: `→ [${label}] ${desc}`,
+        kind: "step",
+      });
+      buildPathLines(target.id, depth + 1, lines, new Set(visited));
     });
   };
 
-  // Trigger browser print action
-  const handlePrint = () => {
-    window.print();
-  };
+  const scenarioOutline = useMemo(() => {
+    return entryNodes.map((entry) => {
+      const lines: PathLine[] = [];
+      buildPathLines(entry.id, 0, lines, new Set());
+      return { entry, lines };
+    });
+  }, [entryNodes, project.connections, project.nodes]);
 
-  // Call simulator step controller
   const startSimulation = () => {
     if (!selectedIncomingNodeId) {
-      alert("Veuillez sélectionner un numéro d'arrivée pour démarrer l'appel.");
+      window.alert("Sélectionnez un numéro d'entrée pour démarrer.");
       return;
     }
-    const nodeObj = project.nodes.find(n => n.id === selectedIncomingNodeId);
+    const nodeObj = project.nodes.find((n) => n.id === selectedIncomingNodeId);
     if (!nodeObj) return;
-
     setSimActive(true);
     setSimCurrentNodeId(nodeObj.id);
     setSimStepsCount(1);
-    setSimLogs([`[08:29] 📞 Appel Téléphonique entrant sur la SDA : ${nodeObj.properties.number || 'Numéro principal'} (${nodeObj.name})`]);
+    setSimLogs([
+      `Appel entrant sur ${formatNumber(nodeObj)} (${nodeObj.name})`,
+      `Contexte : ${simTimeMode === "day" ? "horaires jour" : "horaires nuit"} · résultat agent : ${
+        simCallOutcome === "answered" ? "décroché" : simCallOutcome === "busy" ? "occupé" : "non réponse"
+      }`,
+    ]);
   };
 
   const advanceSimulation = (targetNodeId: string, labelUsed: string) => {
-    const targetNode = project.nodes.find(n => n.id === targetNodeId);
+    const targetNode = project.nodes.find((n) => n.id === targetNodeId);
     if (!targetNode) return;
-
     setSimCurrentNodeId(targetNode.id);
-    setSimStepsCount(prev => prev + 1);
-    
-    let logMsg = `➔ Aiguillage [${labelUsed}] : Direction le bloc "${targetNode.name}"`;
-    
-    if (labelUsed.toLowerCase().includes('externe')) {
-      logMsg += ` (Désigné spécifiquement pour numéros Externes)`;
-    } else if (labelUsed.toLowerCase().includes('interne')) {
-      logMsg += ` (Désigné spécifiquement pour appels Internes)`;
+    setSimStepsCount((prev) => prev + 1);
+    let logMsg = `Aiguillage [${labelUsed}] → ${targetNode.name}`;
+    if (targetNode.type === "user_station" || targetNode.type === "softphone") {
+      logMsg += ` — sonnerie Ext ${targetNode.properties.internalNumber || "?"} (${targetNode.properties.userName || targetNode.name})`;
+    } else if (targetNode.type === "voicemail") {
+      logMsg += " — messagerie vocale";
+    } else if (targetNode.type === "ivr") {
+      logMsg += " — menu SVI";
+    } else if (targetNode.type === "queue" || targetNode.type === "call_group") {
+      logMsg += " — file / groupe d'appel";
+    } else if (targetNode.type.startsWith("forward_")) {
+      logMsg += ` — renvoi ${targetNode.properties.forwardDestination || ""}`;
+    } else if (targetNode.type === "hangup") {
+      logMsg += " — fin d'appel";
+    } else if (targetNode.type === "junction") {
+      logMsg += " — nœud de liaison";
     }
-    
-    // Append specific functional simulation messages
-    if (targetNode.type === 'user_station') {
-      logMsg += ` ⇨ Le poste de ${targetNode.properties.userName || 'l\'agent'} (Interne ${targetNode.properties.internalNumber}) se met à sonner...`;
-    } else if (targetNode.type === 'voicemail') {
-      logMsg += ` ⇨ Message vocal d'absence diffusé ("${targetNode.properties.audioMessageName || 'accueil.wav'}"). L'appelant peut laisser un message.`;
-    } else if (targetNode.type === 'ivr') {
-      logMsg += ` ⇨ Diffusion du menu interactif vocal SVI : "${targetNode.properties.audioMessageName || 'svi.wav'}". Choix clavier disponible.`;
-    } else if (targetNode.type === 'day_night') {
-      logMsg += ` ⇨ Vérification des plages horaires d'ouverture : ${targetNode.properties.timeSchedule || '8h30-18h'}.`;
-    } else if (targetNode.type.startsWith('forward_')) {
-      logMsg += ` ⇨ Renvoi d'appel automatique activé vers : ${targetNode.properties.forwardDestination || 'destination'}.`;
-    } else if (targetNode.type === 'hangup') {
-      logMsg += ` ⇨ 🛑 Appel raccroché de façon automatique / Fin d'appel planifiée.`;
-    }
-
-    setSimLogs(prev => [...prev, logMsg]);
+    setSimLogs((prev) => [...prev, logMsg]);
   };
 
   const resetSimulation = () => {
     setSimActive(false);
-    setSimCurrentNodeId('');
+    setSimCurrentNodeId("");
     setSimLogs([]);
     setSimStepsCount(0);
   };
 
-  const activeSimNode = project.nodes.find(n => n.id === simCurrentNodeId);
+  const activeSimNode = project.nodes.find((n) => n.id === simCurrentNodeId);
   const activeSimNodeMeta = activeSimNode ? NODE_METADATA[activeSimNode.type] : null;
   const availableSimOutlets = activeSimNode
-    ? project.connections.filter(c => c.sourceId === activeSimNode.id)
+    ? project.connections.filter((c) => c.sourceId === activeSimNode.id)
     : [];
 
+  const scoreConnectionForContext = (conn: Connection) => {
+    const labels = (conn.labels && conn.labels.length ? conn.labels : [conn.label || ""])
+      .join(" ")
+      .toLowerCase();
+    let score = 0;
+    if (simTimeMode === "night" && /(nuit|fermé|hors horaire|fermeture|holiday)/.test(labels)) score += 3;
+    if (simTimeMode === "day" && /(jour|ouvert|horaire|accueil)/.test(labels)) score += 2;
+    if (simCallOutcome === "busy" && /(occupé|busy|saturation)/.test(labels)) score += 3;
+    if (simCallOutcome === "no_answer" && /(non.?r[eé]ponse|no.?answer|timeout|sans r[eé]ponse)/.test(labels)) score += 3;
+    if (simCallOutcome === "answered" && /(r[eé]pondu|décroché|ok|suite|direct)/.test(labels)) score += 1;
+    return score;
+  };
+
+  const availableSimOutletsSorted = [...availableSimOutlets].sort(
+    (a, b) => scoreConnectionForContext(b) - scoreConnectionForContext(a)
+  );
+
+  const navBtn = (id: PreviewView, label: string, icon: React.ReactNode) => (
+    <button
+      key={id}
+      type="button"
+      onClick={() => setActiveView(id)}
+      className={`w-full text-left px-3.5 py-2.5 rounded-lg text-xs font-semibold flex items-center justify-between transition-colors cursor-pointer ${
+        activeView === id ? "bg-brand-600 text-white" : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+      }`}
+    >
+      <span className="flex items-center gap-2">
+        {icon}
+        <span>{label}</span>
+      </span>
+      <Check size={12} className={activeView === id ? "text-white" : "text-transparent"} />
+    </button>
+  );
+
   return (
-    <div className="flex-1 overflow-hidden flex flex-col lg:flex-row bg-transparent select-none animate-fade-in" id="preview-section-panel">
-      {/* View Sidebar Selector - Printable ignored */}
-      <div className="w-full lg:w-72 bg-white/40 backdrop-blur-md border-b lg:border-b-0 lg:border-r border-white/20 p-5 flex flex-col justify-between shrink-0 select-none print:hidden">
+    <div className="flex-1 overflow-hidden flex flex-col lg:flex-row select-none animate-fade-in" id="preview-section-panel">
+      <aside className="w-full lg:w-72 bg-white border-b lg:border-b-0 lg:border-r border-slate-200 p-5 flex flex-col justify-between shrink-0">
         <div className="space-y-4">
           <div>
-            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Aperçus & Rapports</h3>
-            <p className="text-xs text-slate-500 mt-1">Examinez le schéma sous forme de contrat commercial, de fiche d'intervention ou testez-le avec notre émulateur d'appels.</p>
+            <h3 className="text-sm font-bold text-slate-900 tracking-tight">Aperçus</h3>
+            <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
+              Résumé du scénario et simulation d&apos;appels entrants.
+            </p>
           </div>
-
           <div className="space-y-1">
-            <button
-              id="btn-view-client"
-              onClick={() => setActiveView('client')}
-              className={`w-full text-left px-3.5 py-2.5 rounded-lg text-xs font-semibold flex items-center justify-between transition-all cursor-pointer ${
-                activeView === 'client' ? 'bg-[#2563eb] text-white shadow-md shadow-blue-500/10' : 'text-slate-600 hover:text-slate-900 hover:bg-white/5'
-              }`}
-            >
-              <span className="flex items-center gap-2">
-                <ClipboardCheck size={15} />
-                <span>Vue Client (Simplifiée)</span>
-              </span>
-              <Check size={12} className={activeView === 'client' ? 'text-white' : 'text-transparent'} />
-            </button>
-
-            <button
-              id="btn-view-tech"
-              onClick={() => setActiveView('tech')}
-              className={`w-full text-left px-3.5 py-2.5 rounded-lg text-xs font-semibold flex items-center justify-between transition-all cursor-pointer ${
-                activeView === 'tech' ? 'bg-[#2563eb] text-white shadow-md shadow-blue-500/10' : 'text-slate-600 hover:text-slate-900 hover:bg-white/5'
-              }`}
-            >
-              <span className="flex items-center gap-2">
-                <Sliders size={15} />
-                <span>Vue Technicien (Détaillée)</span>
-              </span>
-              <Check size={12} className={activeView === 'tech' ? 'text-white' : 'text-transparent'} />
-            </button>
-
-            <button
-              id="btn-view-incoming"
-              onClick={() => setActiveView('incoming')}
-              className={`w-full text-left px-3.5 py-2.5 rounded-lg text-xs font-semibold flex items-center justify-between transition-all cursor-pointer ${
-                activeView === 'incoming' ? 'bg-[#2563eb] text-white shadow-md shadow-blue-500/10' : 'text-slate-600 hover:text-slate-900 hover:bg-white/5'
-              }`}
-            >
-              <span className="flex items-center gap-2">
-                <FileText size={15} />
-                <span>Vue par Numéro Entrant</span>
-              </span>
-              <Check size={12} className={activeView === 'incoming' ? 'text-white' : 'text-transparent'} />
-            </button>
-
-            <button
-              id="btn-view-station"
-              onClick={() => setActiveView('station')}
-              className={`w-full text-left px-3.5 py-2.5 rounded-lg text-xs font-semibold flex items-center justify-between transition-all cursor-pointer ${
-                activeView === 'station' ? 'bg-[#2563eb] text-white shadow-md shadow-blue-500/10' : 'text-slate-600 hover:text-slate-900 hover:bg-white/5'
-              }`}
-            >
-              <span className="flex items-center gap-2">
-                <User size={15} />
-                <span>Vue par Poste Utilisateur</span>
-              </span>
-              <Check size={12} className={activeView === 'station' ? 'text-white' : 'text-transparent'} />
-            </button>
-
-            <button
-              id="btn-view-schema-only"
-              onClick={() => setActiveView('schema_only')}
-              className={`w-full text-left px-3.5 py-2.5 rounded-lg text-xs font-semibold flex items-center justify-between transition-all cursor-pointer ${
-                activeView === 'schema_only' ? 'bg-[#2563eb] text-white shadow-md shadow-blue-500/10' : 'text-slate-600 hover:text-slate-900 hover:bg-white/5'
-              }`}
-            >
-              <span className="flex items-center gap-2">
-                <Layers size={15} />
-                <span>Vue Schéma Uniquement</span>
-              </span>
-              <Check size={12} className={activeView === 'schema_only' ? 'text-white' : 'text-transparent'} />
-            </button>
-
-            <button
-              id="btn-view-simulator"
-              onClick={() => setActiveView('simulator')}
-              className={`w-full text-left px-3.5 py-2.5 rounded-lg text-xs font-semibold flex items-center justify-between transition-all cursor-pointer ${
-                activeView === 'simulator' ? 'bg-[#2563eb] text-white hover:bg-blue-600 shadow-md shadow-blue-500/10' : 'bg-amber-100/50 text-amber-900 hover:bg-amber-100/80 hover:border-amber-200'
-              }`}
-            >
-              <span className="flex items-center gap-2">
-                <Activity size={15} />
-                <span>Simulateur d'Appel Interactif</span>
-              </span>
-              <Play size={10} className="fill-current text-current font-bold" />
-            </button>
+            {navBtn("summary", "Résumé du scénario", <ClipboardCheck size={15} />)}
+            {navBtn("simulator", "Simulateur d'appels", <Activity size={15} />)}
+            {navBtn("schema", "Schéma & export", <Layers size={15} />)}
           </div>
-        </div>
 
-        {/* Print instructions */}
-        <div className="pt-6 border-t border-slate-100 hidden lg:block">
-          <button
-            onClick={handlePrint}
-            className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-2 px-3 rounded-lg flex items-center justify-center gap-2 border border-slate-200 transition-colors cursor-pointer"
-          >
-            <Printer size={14} />
-            <span>Imprimer ou PDF (Ctrl+P)</span>
-          </button>
-          <p className="text-[10px] text-slate-400 text-center mt-2">La mise en page s'adapte automatiquement à l'impression.</p>
-        </div>
-      </div>
-
-      {/* Primary preview documents stage container */}
-      <div className="flex-1 overflow-auto p-6 bg-slate-100 print:bg-white print:p-0">
-        
-        {/* VIEW 1: CLIENT VIEW REPORT (PRINT READY) */}
-        {activeView === 'client' && (
-          <div className="bg-white border border-slate-200 p-8 rounded-2xl max-w-4xl mx-auto shadow-sm space-y-8 print:border-none print:shadow-none" id="preview-client-doc">
-            {/* Report Header Logo box */}
-            <div className="flex items-center justify-between border-b border-slate-200 pb-6">
-              <div>
-                <span className="text-[10px] uppercase tracking-widest text-emerald-600 font-extrabold font-mono">Maquette d'Architecture Validée</span>
-                <h1 className="text-2xl font-black text-slate-950 mt-1 uppercase">PLAN DE CONFIGURATION TÉLÉPHONIQUE</h1>
-                <p className="text-xs text-slate-500 mt-1">Maquette fonctionnelle vulgarisée rédigée pour le client : <b>{project.clientName || 'Acme Corp'}</b></p>
+          {validationAlerts.length > 0 && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-1.5">
+              <div className="text-[10px] font-bold uppercase tracking-wide text-amber-800 flex items-center gap-1">
+                <AlertTriangle size={12} />
+                Diagnostics ({validationAlerts.length})
               </div>
-              <div className="bg-emerald-50 text-emerald-800 p-3 rounded-xl border border-emerald-200/60 text-right select-none">
-                <div className="text-xs font-extrabold uppercase tracking-wide">Document Client</div>
-                <div className="text-[10px] text-emerald-600 mt-1 font-semibold">{project.projectName}</div>
-              </div>
+              <ul className="space-y-1 max-h-36 overflow-y-auto">
+                {validationAlerts.slice(0, 8).map((a) => (
+                  <li key={a.id} className="text-[10px] text-amber-900 leading-snug">
+                    {a.message}
+                  </li>
+                ))}
+              </ul>
             </div>
+          )}
+        </div>
+      </aside>
 
-            {/* Quick presentation stats cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                <span className="text-[10px] font-bold text-slate-400 block uppercase">Client de l'Offre</span>
-                <span className="text-sm font-bold text-slate-800 mt-1 block">{project.clientName || 'Non désigné'}</span>
-              </div>
-              <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                <span className="text-[10px] font-bold text-slate-400 block uppercase">Site d'Installation</span>
-                <span className="text-sm font-bold text-slate-800 mt-1 block">{project.siteName || 'Non désigné'}</span>
-              </div>
-              <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                <span className="text-[10px] font-bold text-slate-400 block uppercase">Administrateur Télécom</span>
-                <span className="text-sm font-bold text-slate-800 mt-1 block">{project.author || 'Technicien Privé'}</span>
-              </div>
-            </div>
-
-            {/* Read-only vector flowchart schema for PDF/Image Approval */}
-            <FlowchartReadonlyVisual project={project} />
-
-            {/* Flowchart list plain english */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-extrabold text-slate-800 border-b border-slate-100 pb-1.5 uppercase tracking-wide">
-                🧭 Comment sont redirigés vos numéros de téléphone principal :
-              </h3>
-              
-              <div className="space-y-3.5">
-                {project.nodes.filter(n => n.type === 'sda' || n.type === 'incoming_num').map(node => (
-                  <div key={node.id} className="p-4 rounded-xl border border-emerald-100 bg-emerald-50/10">
-                    <div className="flex items-center gap-2 font-bold text-emerald-900 text-sm mb-1.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
-                      <span>Numéro direct : {node.properties.number || 'non configuré'} ({node.name})</span>
+      <div className="flex-1 overflow-auto p-6 bg-slate-100">
+        {activeView === "summary" && (
+          <div className="max-w-5xl mx-auto space-y-5">
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm overflow-hidden relative">
+              <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-emerald-500 via-brand-500 to-amber-400" />
+              <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-100 pb-4 pt-1">
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest font-bold text-brand-700">Scénario télécom</p>
+                  <h2 className="text-xl font-bold text-slate-900 mt-1">{project.projectName || "Sans titre"}</h2>
+                  <p className="text-xs text-slate-500 mt-1">
+                    {project.clientName || "Client non renseigné"}
+                    {project.siteName ? ` · ${project.siteName}` : ""}
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+                  {[
+                    { label: "Entrées", value: entryNodes.length, cls: "from-emerald-50 to-emerald-100/60 border-emerald-200 text-emerald-900" },
+                    { label: "SVI", value: ivrs.length, cls: "from-amber-50 to-amber-100/60 border-amber-200 text-amber-900" },
+                    { label: "Files / groupes", value: queues.length, cls: "from-orange-50 to-orange-100/60 border-orange-200 text-orange-900" },
+                    { label: "Terminaux", value: stations.length, cls: "from-sky-50 to-sky-100/60 border-sky-200 text-sky-900" },
+                  ].map((s) => (
+                    <div key={s.label} className={`rounded-xl border bg-gradient-to-b px-3 py-2 min-w-[88px] ${s.cls}`}>
+                      <div className="text-lg font-bold">{s.value}</div>
+                      <div className="text-[10px] font-semibold uppercase opacity-80">{s.label}</div>
                     </div>
-                    {node.properties.clientComment ? (
-                      <p className="text-xs text-slate-600 italic pl-5">« {node.properties.clientComment} »</p>
-                    ) : (
-                      <p className="text-xs text-slate-400 pl-5 italic">Aucune note explicative rédigée pour le client.</p>
-                    )}
+                  ))}
+                </div>
+              </div>
 
-                    {/* Next step translation */}
-                    <div className="mt-3.5 pl-5 space-y-2 border-l-2 border-emerald-200">
-                      {project.connections.filter(c => c.sourceId === node.id).map(conn => {
-                        const target = project.nodes.find(n => n.id === conn.targetId);
-                        if (!target) return null;
+              <div className="mt-5 grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-3">
+                  <div className="font-bold text-emerald-900 mb-2">Numéros d&apos;entrée</div>
+                  {entryNodes.length === 0 ? (
+                    <p className="text-slate-400 italic">Aucun NDI / SDA / numéro entrant.</p>
+                  ) : (
+                    <ul className="space-y-1.5">
+                      {entryNodes.map((n) => {
+                        const accent = nodeAccent(n.type);
                         return (
-                          <div key={conn.id} className="text-xs flex items-start gap-2 text-slate-700 leading-normal">
-                            <span className="text-teal-600 font-extrabold shrink-0">↳ [{conn.label}] ⇨</span>
-                            <div>
-                              <span><b>{target.name}</b></span>
-                              {target.properties.clientComment && (
-                                <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-2">« {target.properties.clientComment} »</p>
-                              )}
+                          <li key={n.id} className="flex items-center justify-between gap-2">
+                            <span className={`font-semibold truncate ${accent.text}`}>{n.name}</span>
+                            <span className={`font-mono shrink-0 px-1.5 py-0.5 rounded border text-[10px] ${accent.chip}`}>
+                              {formatNumber(n)}
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+                <div className="rounded-xl border border-sky-200 bg-sky-50/30 p-3 md:col-span-2">
+                  <div className="font-bold text-sky-900 mb-2">Parc terminaux (postes, softphones, mobiles…)</div>
+                  {stations.length === 0 ? (
+                    <p className="text-slate-400 italic">Aucun terminal sur le canevas.</p>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-44 overflow-y-auto">
+                      {stations.map((n) => {
+                        const accent = nodeAccent(n.type);
+                        return (
+                          <div key={n.id} className={`flex items-center justify-between gap-2 rounded-lg border px-2 py-1.5 ${accent.soft}`}>
+                            <div className="min-w-0">
+                              <div className={`truncate font-semibold ${accent.text}`}>
+                                {n.properties.userName || n.name}
+                              </div>
+                              <div className="text-[9px] text-slate-500 truncate">
+                                {NODE_METADATA[n.type]?.label}
+                                {n.properties.phoneModel ? ` · ${n.properties.phoneModel}` : ""}
+                              </div>
                             </div>
+                            <span className="font-mono text-[10px] text-slate-600 shrink-0">
+                              {n.properties.internalNumber
+                                ? `Ext ${n.properties.internalNumber}`
+                                : n.properties.pabxMobileNumber || n.properties.number || "—"}
+                            </span>
                           </div>
                         );
                       })}
                     </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Summary list of clients devices IP Phones */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-extrabold text-slate-800 border-b border-slate-100 pb-1.5 uppercase tracking-wide">
-                💻 Vos Téléphones de Bureaux et Utilisateurs :
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {project.users.map(u => (
-                  <div key={u.id} className="p-4 rounded-xl border border-slate-150/80 bg-slate-50/50 hover:bg-slate-50 transition-colors">
-                    <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-2">
-                      <span className="font-extrabold text-slate-800 text-xs">{u.name} (Poste {u.internalNumber})</span>
-                      <span className="text-[9px] font-bold bg-blue-50 border border-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
-                        {u.phoneModel}
-                      </span>
-                    </div>
-                    <div className="text-[11px] text-slate-500 space-y-1">
-                      {u.sdaId && <div>• Numéro rattaché direct : <span className="font-mono text-slate-700 font-bold">{u.sdaId}</span></div>}
-                      <div>• Type de matériel : {u.stationType === 'IP' ? 'Téléphone IP Fixe de Bureau' : u.stationType === 'DECT' ? 'Téléphone Sans Fil DECT' : u.stationType === 'Softphone' ? 'Logiciel sur Ordinateur' : 'Poste Analogique habituel'}</div>
-                      {u.voicemailEnabled && <div className="text-emerald-700 font-medium">• Boîte vocale d'absence active</div>}
-                      {u.forwardEnabled && u.forwardDestination && <div className="text-indigo-700 font-medium">• Renvoi actif automatique vers : {u.forwardDestination}</div>}
-                      {u.comment && <div className="text-[10px] italic text-slate-400 mt-1.5">Note: {u.comment}</div>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Signature Box (For client approval stamp) */}
-            <div className="grid grid-cols-2 gap-6 pt-12 border-t border-slate-200 select-none">
-              <div className="p-4 border border-dashed border-slate-200 bg-slate-50/20 rounded-xl flex flex-col justify-between h-36">
-                <span className="text-[10px] font-bold text-slate-400 uppercase">Cachet et Visa du Client (Bon pour accord) :</span>
-                <div className="text-slate-300 text-xs italic">Date de signature : ______ / ______ / 20__</div>
-              </div>
-              <div className="p-4 border border-dashed border-slate-200 bg-slate-50/20 rounded-xl flex flex-col justify-between h-36">
-                <span className="text-[10px] font-bold text-slate-400 uppercase">Visa Technicien Télécom validateurs :</span>
-                <div className="text-emerald-600 text-xs font-extrabold flex items-center gap-1">
-                  <ShieldCheck size={14} className="text-emerald-500" />
-                  <span>Configurable vérifié et conforme pour livraison</span>
+                  )}
+                  {(softphones.length > 0 || mobiles.length > 0) && (
+                    <p className="mt-2 text-[10px] text-slate-500">
+                      Dont {softphones.length} softphone{softphones.length > 1 ? "s" : ""}
+                      {mobiles.length > 0 ? ` · ${mobiles.length} mobile${mobiles.length > 1 ? "s" : ""}` : ""}
+                    </p>
+                  )}
                 </div>
               </div>
-            </div>
-          </div>
-        )}
 
-        {/* VIEW 2: TECHNICIAN FULL DETAILED TRUNKS & CONFIG BLUEPRINT (PRINT READY) */}
-        {activeView === 'tech' && (
-          <div className="bg-white border border-slate-200 p-8 rounded-2xl max-w-4xl mx-auto shadow-sm space-y-8 print:border-none print:shadow-none" id="preview-tech-doc">
-            {/* Header */}
-            <div className="flex items-center justify-between border-b border-slate-200 pb-6">
-              <div>
-                <span className="text-[10px] uppercase font-bold tracking-widest text-blue-600 font-mono">Dossier d'Exploitation Technique - Commutateur Vox/VoIP</span>
-                <h1 className="text-2xl font-black text-slate-900 mt-1">SPÉCIFICATIONS D'INSTALLATION ET ROUTAGES</h1>
-                <p className="text-xs text-slate-500 mt-1">Règles techniques, Trunks, renvois, délais d'astreinte SIP.</p>
-              </div>
-              <div className="bg-blue-50 text-blue-800 p-3 rounded-xl border border-blue-200/60 text-right select-none">
-                <div className="text-xs font-extrabold uppercase">Fiche Exploitation</div>
-                <div className="text-[10px] text-blue-600 mt-1 font-mono font-bold">PORT INGRESS 3000</div>
-              </div>
-            </div>
-
-            {/* Trunks section */}
-            <div className="space-y-3">
-              <h3 className="text-xs uppercase font-extrabold tracking-wider text-slate-500">I. CONFIGURATION DU TRUNK SIP (ENTREPRISES LIAISONS)</h3>
-              <div className="bg-slate-900 rounded-xl overflow-hidden text-slate-200 border border-slate-800">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="bg-slate-950 font-bold text-slate-400 border-b border-slate-800 uppercase text-[10px]">
-                      <th className="p-3">NDI Pilote</th>
-                      <th className="p-3">Type</th>
-                      <th className="p-3">Canaux Simultanés</th>
-                      <th className="p-3">Opérateur Partenaire</th>
-                      <th className="p-3">Observations d'exploitation</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800 text-[11px] font-mono">
-                    {project.lines.map(line => (
-                      <tr key={line.id} className="hover:bg-slate-900/60">
-                        <td className="p-3 font-bold text-white">{line.ndi}</td>
-                        <td className="p-3 text-slate-300">{line.type}</td>
-                        <td className="p-3 text-teal-400 font-black">{line.channels} CH</td>
-                        <td className="p-3 text-slate-300">{line.provider}</td>
-                        <td className="p-3 text-slate-400 font-sans">{line.comment || 'N/A'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              {queues.length > 0 && (
+                <div className="mt-4 rounded-xl border border-orange-200 bg-orange-50/30 p-3">
+                  <div className="font-bold text-orange-900 text-xs mb-2">Files &amp; groupes — options actives</div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {queues.map((n) => {
+                      const accent = nodeAccent(n.type);
+                      const p = n.properties;
+                      const tags: string[] = [distributionModeLabel(p.groupType)];
+                      if (hasPositiveTimeout(p.delayBeforeForward)) tags.push(`Timeout ${p.delayBeforeForward}s`);
+                      if (hasPositiveTimeout(p.agentRingTimeout)) tags.push(`Sonnerie ${p.agentRingTimeout}s`);
+                      if (p.overflowAction) tags.push(p.overflowAction);
+                      if (p.maxCallersInQueue != null && p.maxCallersInQueue > 0) tags.push(`Max ${p.maxCallersInQueue}`);
+                      if (p.musicOnHold) tags.push(`MOH ${p.musicOnHold}`);
+                      return (
+                        <div key={n.id} className={`rounded-lg border px-2.5 py-2 ${accent.soft}`}>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className={`w-1.5 h-1.5 rounded-full ${accent.bar}`} />
+                            <span className={`text-xs font-bold truncate ${accent.text}`}>{n.name}</span>
+                            {p.internalNumber ? (
+                              <span className="ml-auto font-mono text-[9px] text-slate-500">Ext {p.internalNumber}</span>
+                            ) : null}
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {tags.map((t) => (
+                              <span key={t} className={`text-[9px] font-semibold px-1.5 py-0.5 rounded border ${accent.chip}`}>
+                                {t}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Read-only vector flowchart schema for IP Configuration & Astreinte */}
-            <FlowchartReadonlyVisual project={project} />
-
-            {/* Diagram list with technical notes */}
-            <div className="space-y-4">
-              <h3 className="text-xs uppercase font-extrabold tracking-wider text-slate-500">II. TABLE DE ROUTAGE ET PARAMETRES DES BLOCS TELECOM</h3>
-              <div className="space-y-2">
-                {project.nodes.map(node => {
-                  const meta = NODE_METADATA[node.type];
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+              <h3 className="text-sm font-bold text-slate-900">Parcours depuis chaque entrée</h3>
+              {scenarioOutline.length === 0 ? (
+                <p className="text-xs text-slate-400 italic">Ajoutez des numéros d&apos;entrée pour générer le résumé.</p>
+              ) : (
+                scenarioOutline.map(({ entry, lines }) => {
+                  const accent = nodeAccent(entry.type);
                   return (
-                    <div key={node.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-slate-50">
-                      <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-slate-800">{node.name}</span>
-                          <span className="text-[9px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-mono font-bold uppercase">
-                            {meta?.label || node.type}
-                          </span>
+                    <div key={entry.id} className="rounded-xl border border-slate-200 overflow-hidden">
+                      <div className={`px-4 py-2.5 flex items-center justify-between gap-3 border-b ${accent.soft}`}>
+                        <div className="min-w-0 flex items-center gap-2">
+                          <span className={`w-2 h-8 rounded-full shrink-0 ${accent.bar}`} />
+                          <div className="min-w-0">
+                            <div className={`text-xs font-bold truncate ${accent.text}`}>{entry.name}</div>
+                            <div className="text-[10px] text-slate-500">{NODE_METADATA[entry.type]?.label || entry.type}</div>
+                          </div>
                         </div>
-                        <span className="text-[10px] font-mono text-slate-400 font-bold">Node-UUID: #{node.id}</span>
+                        <span className={`font-mono text-xs font-semibold shrink-0 px-2 py-1 rounded-lg border ${accent.chip}`}>
+                          {formatNumber(entry)}
+                        </span>
                       </div>
-                      
-                      {/* Technical internal characteristics */}
-                      <div className="grid grid-cols-2 gap-4 text-xs mt-2 text-slate-600">
-                        <div className="space-y-1">
-                          {node.properties.number && <div>• <b>Numéro externe :</b> <span className="font-mono">{node.properties.number}</span></div>}
-                          {node.properties.internalNumber && <div>• <b>Code d'extension interne :</b> <span className="font-mono font-bold text-indigo-700">{node.properties.internalNumber}</span></div>}
-                          
-                          {/* Equipment & Matériel */}
-                          {node.properties.phoneBrand && (
-                            <div>• <b>Équipement :</b> {node.properties.phoneBrand} {node.properties.phoneModel === 'custom_input' ? node.properties.phoneModelCustom : node.properties.phoneModel} 
-                              {node.properties.phoneType && <span className="text-[9px] bg-slate-100 text-slate-600 px-1 py-0.5 rounded ml-1 uppercase">{node.properties.phoneType}</span>}
-                            </div>
-                          )}
-                          {node.properties.macAddress && <div>• <b>Adresse MAC :</b> <span className="font-mono text-[11px] bg-slate-100 px-1 py-0.5 rounded">{node.properties.macAddress}</span></div>}
-                          {node.properties.associatedSda && <div>• <b>SDA Rattachée :</b> <span className="font-mono">{node.properties.associatedSda}</span></div>}
-                          {node.properties.outgoingCallerId && <div>• <b>N° Sortant Présenté :</b> <span className="font-mono">{node.properties.outgoingCallerId}</span></div>}
-                          {node.properties.siteName && <div>• <b>Site :</b> {node.properties.siteName} {node.properties.serviceName && <span>({node.properties.serviceName})</span>}</div>}
-                          
-                          {/* DECT fields */}
-                          {node.properties.phoneType === 'DECT' && (node.properties.dectBaseModel || node.properties.dectHandsetModel) && (
-                            <div className="text-[11px] bg-indigo-50 text-indigo-950 p-1.5 rounded border border-indigo-100 mt-1">
-                              <strong>Base DECT:</strong> {node.properties.dectBaseModel || 'N/A'} | <strong>Combiné:</strong> {node.properties.dectHandsetModel || 'N/A'}
-                            </div>
-                          )}
-
-                          {/* Option PABX Mobile (ex: SFR PBU) */}
-                          {(node.properties.hasPabxOption || node.properties.phoneType === 'Mobile PBU') && (
-                            <div className="text-[11px] bg-red-50 text-red-950 p-1.5 rounded border border-red-200 mt-1 space-y-0.5">
-                              <div className="font-bold text-red-800 flex items-center gap-1">
-                                <span className="bg-red-600 text-white text-[8px] font-black px-1 rounded">PABX</span>
-                                <span>{node.properties.pabxOperator || 'SFR Business (PBU)'}</span>
-                              </div>
-                              {node.properties.pabxMobileNumber && <div>• <b>Ligne Mobile :</b> <span className="font-mono">{node.properties.pabxMobileNumber}</span></div>}
-                              {node.properties.pabxOptionDetails && <div>• <b>Option / Profil :</b> {node.properties.pabxOptionDetails}</div>}
-                            </div>
-                          )}
-
-                          {/* Accessories */}
-                          {node.properties.hasExtensionModule && node.properties.hasExtensionModule !== "aucun module d'extension" && (
-                            <div>• <b>Module DSS :</b> {node.properties.hasExtensionModule} ({node.properties.extensionModuleModel === 'module personnalisé' ? node.properties.extensionModuleCustom : node.properties.extensionModuleModel})</div>
-                          )}
-                          {node.properties.hasHeadset && node.properties.hasHeadset !== 'aucun casque' && (
-                            <div>• <b>Casque audio :</b> {node.properties.hasHeadset} ({node.properties.headsetBrand} {node.properties.headsetModel})</div>
-                          )}
-
-                          {node.properties.delayBeforeForward && <div>• <b>Délai / Tempisation d'attente (s) :</b> <span className="font-mono text-rose-700 font-black">{node.properties.delayBeforeForward} sec</span></div>}
-                          {node.properties.forwardDestination && <div>• <b>Cible de débordement / d'aiguillage :</b> <span className="font-mono font-bold text-violet-700">{node.properties.forwardDestination}</span></div>}
-                        </div>
-                        <div className="space-y-1">
-                          {node.properties.timeSchedule && <div>• <b>Plage horaire d'ouverture :</b> <span className="font-mono text-amber-800">{node.properties.timeSchedule}</span></div>}
-                          {node.properties.audioMessageName && <div>• <b>Prompt Fichier Audio .wav :</b> <span className="font-mono text-rose-800 truncate block">{node.properties.audioMessageName}</span></div>}
-                          {node.properties.emergencyActive !== undefined && <div>• <b>Scénario d'urgence forcé :</b> <span className="font-bold text-rose-600">{node.properties.emergencyActive ? 'OUI (Routage Forcé)' : 'NON (Mode normal)'}</span></div>}
-                          
-                          {/* target platform */}
-                          {(node.properties.targetPlatform || node.properties.configMethod) && (
-                            <div>• <b>Plateforme Telecom :</b> <b className="text-blue-700">{node.properties.targetPlatform === 'Autre' ? node.properties.targetPlatformCustom : node.properties.targetPlatform}</b> {node.properties.configMethod && <span>via <i>{node.properties.configMethod}</i></span>}</div>
-                          )}
-
-                          {/* dynamic status */}
-                          {node.properties.nodeStatus && (
-                            <div>• <b>État Dynamique :</b> <span className="uppercase text-[9px] font-bold px-1.5 py-0.5 rounded bg-teal-100 text-teal-850 border border-teal-200">{node.properties.nodeStatusCustom || node.properties.nodeStatus}</span></div>
-                          )}
-
-                          {/* forward configuration type */}
-                          {node.properties.forwardType && node.properties.forwardType !== 'none' && (
-                            <div className="mt-1 bg-violet-50 text-violet-950 p-1.5 rounded border border-violet-100 text-[11px]">
-                              <b>Modes de Renvoi :</b> <span className="uppercase font-bold text-violet-850">{node.properties.forwardType === 'manual' ? 'Manuel' : 'Programmé / Temporel'}</span>
-                              {node.properties.forwardPriority && <span className="ml-2 font-mono text-indigo-700">(Prio: {node.properties.forwardPriority})</span>}
-                              {node.properties.priorityLevel && <span className="ml-1 text-[9px] bg-red-100 border border-red-200 text-red-700 px-1 rounded uppercase font-bold">{node.properties.priorityLevel}</span>}
-                              {node.properties.forwardType === 'manual' && node.properties.manualForwardTrigger && (
-                                <div className="mt-1 text-[10px] text-slate-500">▶ Déclencheur: <i>{node.properties.manualForwardTrigger}</i></div>
+                      <div className="px-4 py-3 space-y-1">
+                        {lines.length === 0 ? (
+                          <p className="text-[11px] text-slate-400 italic pl-2">Aucune connexion sortante</p>
+                        ) : (
+                          lines.map((line, i) => (
+                            <div
+                              key={`${entry.id}-${i}`}
+                              style={{ paddingLeft: `${8 + line.depth * 20}px` }}
+                              className={`relative text-[11px] leading-relaxed rounded-lg px-2.5 py-1.5 border ${
+                                line.kind === "loop"
+                                  ? "bg-rose-50 border-rose-200 text-rose-800"
+                                  : line.kind === "end"
+                                  ? "bg-slate-800 border-slate-700 text-slate-100"
+                                  : "bg-white border-slate-100 text-slate-700"
+                              }`}
+                            >
+                              {line.depth > 0 && (
+                                <span
+                                  className="absolute left-0 top-0 bottom-0 w-0.5 bg-slate-200"
+                                  style={{ left: `${line.depth * 20 - 6}px` }}
+                                  aria-hidden
+                                />
                               )}
+                              <span className="font-mono">
+                                {line.text}
+                                {line.kind === "end" ? (
+                                  <span className="ml-2 text-[9px] font-bold uppercase tracking-wide text-amber-300">
+                                    fin d&apos;appel
+                                  </span>
+                                ) : null}
+                              </span>
                             </div>
-                          )}
-
-                          {/* Key Switch */}
-                          {node.properties.keyConfig && (
-                            <div className="mt-1 bg-amber-50 text-amber-950 p-1.5 rounded border border-amber-200 text-[11px] space-y-0.5">
-                              <span className="font-bold text-[9px] text-amber-850 uppercase block">🔑 TOUCHE PHYSIQUE / BLF / DSS</span>
-                              <div><b>Nom :</b> {node.properties.keyConfig.keyName || 'Sans libellé'} | <b>Type :</b> {node.properties.keyConfig.keyType}</div>
-                              {node.properties.keyConfig.functionCode && <div><b>Code :</b> <code className="font-mono bg-white px-1 border border-slate-200 rounded">{node.properties.keyConfig.functionCode}</code></div>}
-                              {node.properties.keyConfig.concernedPost && <div><b>Poste visé :</b> {node.properties.keyConfig.concernedPost}</div>}
-                              {node.properties.keyConfig.actionTriggered && <div><b>Action :</b> {node.properties.keyConfig.actionTriggered}</div>}
-                            </div>
-                          )}
-                        </div>
+                          ))
+                        )}
                       </div>
-
-                      {/* Technical comment */}
-                      {node.properties.techComment && (
-                        <div className="mt-3 bg-blue-50/50 border border-blue-100 p-2.5 rounded text-[11px] text-blue-900 leading-normal">
-                          <b>NOTE INTEGRATEUR SYSTÈME :</b> {node.properties.techComment}
-                        </div>
-                      )}
                     </div>
                   );
-                })}
-              </div>
-            </div>
-
-            {/* Diagnostic system list print */}
-            <div className="space-y-3">
-              <h3 className="text-xs uppercase font-extrabold tracking-wider text-slate-500">III. RAPPORT DE CONTROLE QUALITÉ & ERREURS</h3>
-              <div className="p-4 rounded-xl border border-slate-150 bg-slate-50/20 text-xs text-slate-600">
-                {validationAlerts.length === 0 ? (
-                  <div className="flex items-center gap-2 text-emerald-700 font-extrabold">
-                    <Check size={16} className="text-emerald-500 shrink-0" />
-                    <span>ZÉRO ERREUR TECHNIQUE CONSTATÉE. Le scénario est validé pour déploiement sur Asterisk/Xivo/PABX Cloud.</span>
-                  </div>
-                ) : (
-                  <div className="space-y-2.5">
-                    <span className="text-rose-700 font-extrabold flex items-center gap-1.5">
-                      <AlertTriangle size={15} />
-                      ATTENTION : {validationAlerts.length} avertissements techniques nuisibles au déploiement ont été relevés :
-                    </span>
-                    <ul className="list-disc list-inside space-y-1 pl-4">
-                      {validationAlerts.map((a, i) => (
-                        <li key={i} className="text-slate-700 font-medium">
-                          Bloc <span className="font-bold">"{project.nodes.find(n => n.id === a.nodeId)?.name || 'N/A'}"</span>: {a.message}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
+                })
+              )}
             </div>
           </div>
         )}
 
-        {/* VIEW 3: VIEW BY INCOMING PHONE NUMBER (FILTERING) */}
-        {activeView === 'incoming' && (
+        {activeView === "simulator" && (
           <div className="bg-white border border-slate-200 p-6 rounded-2xl max-w-4xl mx-auto shadow-sm space-y-6">
-            <div>
-              <h3 className="text-sm font-bold text-slate-800">Visualisation par numéro d'accès SDA</h3>
-              <p className="text-xs text-slate-500 mt-1">Sélectionnez une SDA pour voir la suite des raccordements associés.</p>
-            </div>
-
-            <div className="flex items-center gap-2.5">
-              <label className="text-xs font-bold text-slate-700 shrink-0">Choisir une SDA :</label>
-              <select
-                value={filterSDA}
-                onChange={(e) => setFilterSDA(e.target.value)}
-                className="bg-slate-50 border border-slate-300 rounded px-3 py-1.5 text-xs text-slate-800 focus:outline-none w-64 font-mono font-bold"
-                id="select-filter-sda"
-              >
-                <option value="">-- Sélectionnez une SDA --</option>
-                {project.nodes.filter(n => n.type === 'sda' || n.type === 'incoming_num').map(n => (
-                  <option key={n.id} value={n.id}>{n.properties.number || 'Inconnu'} - {n.name}</option>
-                ))}
-              </select>
-            </div>
-
-            {filterSDA ? (
-              (() => {
-                const sdaNode = project.nodes.find(n => n.id === filterSDA);
-                if (!sdaNode) return null;
-                
-                // Track visited nodes to prevent loop crash inside renderer
-                const renderedVisited = new Set<string>();
-
-                const renderStepLine = (nodeId: string, depth = 0) => {
-                  if (renderedVisited.has(nodeId)) {
-                    return (
-                      <div className="pl-4 border-l border-red-300 py-1 text-[11px] text-red-600 font-mono">
-                        🔁 [ERREUR SYSTEME] Boucle d'appel infinie détectée ! Le scénario va planter.
-                      </div>
-                    );
-                  }
-                  renderedVisited.add(nodeId);
-
-                  const activeNode = project.nodes.find(n => n.id === nodeId);
-                  if (!activeNode) return null;
-                  const meta = NODE_METADATA[activeNode.type];
-
-                  const childConnections = project.connections.filter(c => c.sourceId === nodeId);
-
-                  return (
-                    <div className="space-y-4">
-                      {/* Row block style representing active step */}
-                      <div className="flex items-center gap-3.5 p-3.5 rounded-lg border border-slate-200 bg-slate-50/70 max-w-2xl shadow-xs">
-                        <div className="p-2 bg-white rounded border border-slate-300 font-bold shrink-0">
-                          <Layers size={16} className="text-slate-600" />
-                        </div>
-                        <div>
-                          <div className="font-bold text-slate-800 text-xs">{activeNode.name}</div>
-                          <div className="text-[10px] text-slate-500">
-                            Type: <span className="font-semibold text-slate-700">{meta?.label || activeNode.type}</span>
-                            {activeNode.properties.internalNumber && ` | Interne : ${activeNode.properties.internalNumber}`}
-                            {activeNode.properties.audioMessageName && ` | Audio : ${activeNode.properties.audioMessageName}`}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Output paths mapping */}
-                      {childConnections.length > 0 && (
-                        <div className="pl-6 space-y-4 border-l-2 border-slate-350">
-                          {childConnections.map(conn => {
-                            const targetId = conn.targetId;
-                            return (
-                              <div key={conn.id} className="space-y-2">
-                                <div className="text-[10px] font-extrabold text-teal-800 bg-teal-50 px-2 py-0.5 rounded border border-teal-100 inline-block">
-                                  Option: {conn.label}
-                                </div>
-                                {renderStepLine(targetId, depth + 1)}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  );
-                };
-
-                return (
-                  <div className="space-y-6 pt-4 border-t border-slate-100 select-none">
-                    <h4 className="text-xs font-bold uppercase text-slate-400">Arbre d'aiguillage de l'appel :</h4>
-                    {renderStepLine(filterSDA)}
-                  </div>
-                );
-              })()
-            ) : (
-              <div className="p-8 text-center italic text-slate-400 text-xs">Veuillez désigner un numéro d'accès ci-dessus.</div>
-            )}
-          </div>
-        )}
-
-        {/* VIEW 4: VIEW VIA INDIVIDUAL PHONE STATION / USER */}
-        {activeView === 'station' && (
-          <div className="bg-white border border-slate-200 p-6 rounded-2xl max-w-4xl mx-auto shadow-sm space-y-6">
-            <div>
-              <h3 className="text-sm font-bold text-slate-800">Visualisation par poste d'utilisateur</h3>
-              <p className="text-xs text-slate-500 mt-1">Voyez instantanément quels flux du schéma général débouchent sur un poste en particulier.</p>
-            </div>
-
-            <div className="flex items-center gap-2.5">
-              <label className="text-xs font-bold text-slate-700 shrink-0">Choisir un poste :</label>
-              <select
-                value={filterStation}
-                onChange={(e) => setFilterStation(e.target.value)}
-                className="bg-slate-50 border border-slate-300 rounded px-3 py-1.5 text-xs text-slate-800 focus:outline-none w-64"
-                id="select-filter-station"
-              >
-                <option value="">-- Sélectionnez un Poste --</option>
-                {project.nodes.filter(n => n.type === 'user_station' || n.type === 'switchboard').map(n => (
-                  <option key={n.id} value={n.id}>{n.name} (Interne {n.properties.internalNumber || 'ext'})</option>
-                ))}
-              </select>
-            </div>
-
-            {filterStation ? (
-              (() => {
-                const targetNode = project.nodes.find(n => n.id === filterStation);
-                if (!targetNode) return null;
-
-                // Find incoming routes to this target station
-                const parentsConnections: string[] = [];
-                
-                // Breadth first or simple traverse
-                const findPathsTo = (nodeId: string, currentPath: string[]) => {
-                  if (nodeId === targetNode.id) {
-                    parentsConnections.push(currentPath.join(' ➔ '));
-                    return;
-                  }
-                  
-                  // Avoid infinite loops
-                  if (currentPath.length > 8) return;
-
-                  const conns = project.connections.filter(c => c.sourceId === nodeId);
-                  conns.forEach(c => {
-                    const src = project.nodes.find(n => n.id === nodeId);
-                    findPathsTo(c.targetId, [...currentPath, `${src?.name} [${c.label}]`]);
-                  });
-                };
-
-                // Root nodes to scan paths from
-                const roots = project.nodes.filter(n => n.type === 'sda' || n.type === 'incoming_num');
-                roots.forEach(r => findPathsTo(r.id, [r.name]));
-
-                return (
-                  <div className="space-y-4 pt-4 border-t border-slate-100 select-none">
-                    <h4 className="text-xs font-bold uppercase text-slate-400">Flux menant à ce poste :</h4>
-                    {parentsConnections.length === 0 ? (
-                      <p className="text-xs text-rose-600 bg-rose-50 p-3 rounded border border-rose-100">
-                        ⚠️ Ce poste n'est relié à aucun numéro d'accès direct ni SVI. Il est impossible pour un client externe de le joindre en l'état actuel !
-                      </p>
-                    ) : (
-                      <div className="space-y-3">
-                        {parentsConnections.map((pathStr, i) => (
-                          <div key={i} className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs flex items-center justify-between">
-                            <span className="font-medium text-slate-700 font-mono">{pathStr} ➔ <b className="text-slate-900">{targetNode.name}</b></span>
-                            <div className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded">
-                              Actif
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })()
-            ) : (
-              <div className="p-8 text-center italic text-slate-400 text-xs">Veuillez désigner un poste ci-dessus.</div>
-            )}
-          </div>
-        )}
-
-        {/* VIEW 5: INTERACTIVE SIMULATOR EMULATOR (STUNNING EXTRA CUSTOM ELEMENT) */}
-        {activeView === 'simulator' && (
-          <div className="bg-white border border-slate-200 p-6 rounded-2xl max-w-4xl mx-auto shadow-sm space-y-6" id="preview-simulator-panel">
             <div className="border-b border-slate-100 pb-4">
-              <h3 className="text-lg font-black text-slate-950 flex items-center gap-2">
-                <Activity size={20} className="text-amber-500 animate-pulse" />
-                ÉMULATEUR ET SIMULATEUR DE FLUX TÉLÉCOMS
+              <h3 className="text-lg font-bold text-slate-950 flex items-center gap-2">
+                <Activity size={20} className="text-brand-600" />
+                Simulateur d&apos;appels
               </h3>
-              <p className="text-xs text-slate-505 mt-1 leading-normal">
-                Testez vos routages en conditions réelles : lancez un appel sur l'un de vos numéros et choisissez à chaque aiguillage interactif l'option ou la condition simulée pour tracer pas à pas le parcours de l'appelant.
+              <p className="text-xs text-slate-500 mt-1">
+                Composez un numéro d&apos;entrée (NDI, SDA, ligne directe…) puis choisissez l&apos;aiguillage à chaque étape.
               </p>
             </div>
 
             {!simActive ? (
-              <div className="p-6 bg-slate-50 border border-slate-200 rounded-2xl space-y-4 max-w-xl mx-auto text-left select-none">
-                <h4 className="text-xs font-bold uppercase text-slate-700">DÉMARRER UN TEST D’APPEL SVI & ASTREINTE :</h4>
-                
-                <div className="space-y-1">
-                  <label className="text-xs text-slate-500">Choisissez le numéro d'appel sortant à tester :</label>
+              <div className="p-6 bg-slate-50 border border-slate-200 rounded-2xl space-y-4 max-w-xl">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-600">Numéro d&apos;entrée à tester</label>
                   <select
                     value={selectedIncomingNodeId}
                     onChange={(e) => setSelectedIncomingNodeId(e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2.5 text-xs text-slate-800 focus:outline-none font-bold"
+                    className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 font-semibold"
                   >
-                    <option value="">-- Sélectionnez une entrée --</option>
-                    {project.nodes.filter(n => n.type === 'sda' || n.type === 'incoming_num').map(n => (
-                      <option key={n.id} value={n.id}>{n.properties.number || '01XXXX'} - {n.name}</option>
+                    <option value="">— Sélectionnez une entrée —</option>
+                    {entryNodes.map((n) => (
+                      <option key={n.id} value={n.id}>
+                        {formatNumber(n)} — {n.name}
+                      </option>
                     ))}
                   </select>
+                  {entryNodes.length === 0 && (
+                    <p className="text-[11px] text-amber-700">
+                      Aucune entrée détectée. Ajoutez un bloc NDI, SDA ou numéro entrant dans Conception.
+                    </p>
+                  )}
                 </div>
-
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-600">Contexte horaire</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSimTimeMode("day")}
+                      className={`py-2 rounded-lg text-xs font-bold border cursor-pointer ${
+                        simTimeMode === "day" ? "bg-amber-500 text-white border-amber-500" : "bg-white border-slate-200 text-slate-600"
+                      }`}
+                    >
+                      Jour
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSimTimeMode("night")}
+                      className={`py-2 rounded-lg text-xs font-bold border cursor-pointer ${
+                        simTimeMode === "night" ? "bg-indigo-600 text-white border-indigo-600" : "bg-white border-slate-200 text-slate-600"
+                      }`}
+                    >
+                      Nuit
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-600">Résultat au poste / file</label>
+                  <select
+                    value={simCallOutcome}
+                    onChange={(e) => setSimCallOutcome(e.target.value as "answered" | "busy" | "no_answer")}
+                    className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2.5 text-xs text-slate-800 font-semibold"
+                  >
+                    <option value="answered">Décroché / abouti</option>
+                    <option value="busy">Occupé</option>
+                    <option value="no_answer">Non-réponse</option>
+                  </select>
+                </div>
                 <button
-                  id="btn-trigger-simulator"
+                  type="button"
                   onClick={startSimulation}
-                  className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-2.5 rounded-lg text-xs select-none cursor-pointer transition-colors flex items-center justify-center gap-2"
+                  disabled={!selectedIncomingNodeId}
+                  className="w-full bg-brand-600 hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-2.5 rounded-lg text-xs cursor-pointer transition-colors flex items-center justify-center gap-2"
                 >
                   <Play size={14} className="fill-current" />
-                  <span>LANCER L'APPEL SIMULÉ</span>
+                  Lancer l&apos;appel simulé
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 align-stretch">
-                {/* Active step control panel */}
-                <div className="md:col-span-2 p-5 border border-amber-200 bg-amber-50/20 rounded-2xl flex flex-col justify-between">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="md:col-span-2 p-5 border border-brand-200 bg-brand-50/30 rounded-2xl flex flex-col justify-between gap-4">
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between border-b border-amber-200/50 pb-2">
-                      <span className="text-xs font-bold text-amber-900 uppercase">Étape Active de l'Appel #{simStepsCount}</span>
-                      <span className="text-[10px] px-2 py-0.5 bg-emerald-500 text-white rounded-full font-bold uppercase tracking-wider animate-pulse">Ligne Connectée</span>
+                    <div className="flex items-center justify-between border-b border-brand-100 pb-2">
+                      <span className="text-xs font-bold text-brand-900 uppercase">Étape {simStepsCount}</span>
+                      <span className="text-[10px] px-2 py-0.5 bg-emerald-500 text-white rounded-md font-bold uppercase">En cours</span>
                     </div>
-
                     <div className="p-4 bg-white border border-slate-200 rounded-xl space-y-2">
                       <span className="text-[9px] bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded text-slate-500 font-bold uppercase">
-                        {activeSimNodeMeta?.label || 'Bloc inconnu'}
+                        {activeSimNodeMeta?.label || "Bloc"}
                       </span>
                       <h4 className="text-sm font-bold text-slate-900">{activeSimNode?.name}</h4>
-                      <p className="text-xs text-slate-600 italic">« {activeSimNode?.properties.description || activeSimNode?.properties.clientComment || 'Pas de descriptif d\'explications.'} »</p>
-                      
-                      {activeSimNode?.properties.internalNumber && (
-                        <div className="text-[11px] font-mono text-slate-500">Poste d'arrivée : <b>Ext {activeSimNode.properties.internalNumber}</b></div>
+                      {activeSimNode && isEntryNode(activeSimNode.type) && (
+                        <div className="font-mono text-xs text-brand-700">{formatNumber(activeSimNode)}</div>
                       )}
+                      <p className="text-xs text-slate-600">
+                        {activeSimNode?.properties.description || activeSimNode?.properties.clientComment || "Sans descriptif."}
+                      </p>
                     </div>
-
-                    {/* Available routes decision buttons */}
-                    <div className="space-y-2.5">
-                      <span className="text-[10px] font-bold text-slate-400 block uppercase">AIGUILLAGE DISPONIBLE :</span>
-                      {availableSimOutlets.length === 0 ? (
-                        <div className="p-4 rounded-lg bg-orange-100 text-orange-950 border border-orange-200 text-xs text-center font-bold">
-                          🏁 L'appel est terminé à cette étape (renvoi externe, messagerie, ou poste final atteint).
+                    <div className="space-y-2">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">Aiguillage</span>
+                      {availableSimOutletsSorted.length === 0 ? (
+                        <div className="p-4 rounded-lg bg-slate-100 text-slate-700 border border-slate-200 text-xs text-center font-semibold">
+                          Fin de parcours à cette étape.
                         </div>
                       ) : (
-                        <div className="grid grid-cols-1 gap-2">
-                          {availableSimOutlets.map(conn => {
-                            const subTarget = project.nodes.find(n => n.id === conn.targetId);
-                            return (
-                              <button
-                                key={conn.id}
-                                onClick={() => advanceSimulation(conn.targetId, conn.label)}
-                                className="p-3 bg-white hover:bg-slate-50 border border-slate-200 hover:border-amber-400 rounded-xl text-left text-xs transition-all cursor-pointer flex items-center justify-between group font-semibold text-slate-700"
-                              >
-                                <span>Aiguiller sur : <b className="text-teal-800">[{conn.label}]</b> ⇨ {subTarget?.name}</span>
-                                <ChevronRight size={14} className="text-slate-400 group-hover:text-amber-600 transition-colors" />
-                              </button>
-                            );
-                          })}
-                        </div>
+                        availableSimOutletsSorted.map((conn) => {
+                          const subTarget = project.nodes.find((n) => n.id === conn.targetId);
+                          const hint = scoreConnectionForContext(conn) >= 3;
+                          return (
+                            <button
+                              key={conn.id}
+                              type="button"
+                              onClick={() => advanceSimulation(conn.targetId, conn.label || "suite")}
+                              className={`w-full p-3 bg-white hover:bg-slate-50 border rounded-xl text-left text-xs transition-colors cursor-pointer flex items-center justify-between group font-semibold text-slate-700 ${
+                                hint ? "border-brand-400 ring-1 ring-brand-200" : "border-slate-200 hover:border-brand-400"
+                              }`}
+                            >
+                              <span>
+                                <b className="text-brand-800">[{conn.label || "suite"}]</b> → {subTarget?.name}
+                                {hint ? <span className="ml-2 text-[9px] text-brand-600 uppercase">contexte</span> : null}
+                              </span>
+                              <ChevronRight size={14} className="text-slate-400 group-hover:text-brand-600" />
+                            </button>
+                          );
+                        })
                       )}
                     </div>
                   </div>
-
                   <button
+                    type="button"
                     onClick={resetSimulation}
-                    className="mt-6 w-full bg-red-600 hover:bg-red-700 active:scale-98 text-white font-extrabold py-2.5 rounded-lg text-xs cursor-pointer text-center flex items-center justify-center gap-2 shadow-md transition-all uppercase tracking-wide"
+                    className="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-2.5 rounded-lg text-xs cursor-pointer flex items-center justify-center gap-2"
                   >
                     <PhoneOff size={13} />
-                    <span>Raccrocher / Fin d'appel</span>
+                    Raccrocher
                   </button>
                 </div>
-
-                {/* Display active call log history terminal */}
-                <div className="p-4 bg-slate-950 border border-slate-900 rounded-2xl flex flex-col justify-between text-left font-mono">
-                  <div className="space-y-3 overflow-y-auto max-h-[300px] scrollbar-thin">
-                    <span className="text-[9px] text-slate-500 font-extrabold uppercase tracking-widest block">📝 LOGS COMMUTATEUR EN TEMPS RÉEL</span>
-                    <div className="space-y-2 text-[11px] text-teal-300">
-                      {simLogs.map((log, i) => (
-                        <div key={i} className="leading-snug">
-                          {log}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  
-                  <div className="mt-4 border-t border-slate-800 pt-3 text-[10px] text-slate-400 text-center uppercase tracking-wider font-extrabold flex items-center justify-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-                    <span>TRACE EN COURS VIA SIM_01_AST</span>
+                <div className="p-4 bg-slate-950 rounded-2xl font-mono flex flex-col">
+                  <span className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mb-3">Journal d&apos;appel</span>
+                  <div className="space-y-2 text-[11px] text-teal-300 overflow-y-auto max-h-[320px] flex-1">
+                    {simLogs.map((log, i) => (
+                      <div key={i} className="leading-snug">{log}</div>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -1871,48 +1602,29 @@ export default function PreviewSection({ project, validationAlerts }: PreviewSec
           </div>
         )}
 
-        {/* VIEW 6: SCHEMA ONLY (HIGH DEFINITION VIEW + DOWNLOAD SVG/PNG) */}
-        {activeView === 'schema_only' && (
-          <div className="bg-white border border-slate-200 p-8 rounded-2xl max-w-5xl mx-auto shadow-sm space-y-6" id="preview-schema-only-panel">
-            <div className="border-b border-slate-100 pb-4">
-              <h3 className="text-lg font-black text-slate-950 uppercase flex items-center gap-2">
-                <Layers size={20} className="text-emerald-600" />
-                Dossier Graphique - Vue Schéma Uniquement
-              </h3>
-              <p className="text-xs text-slate-500 mt-1 leading-normal">
-                Examinez le schéma d'acheminement télécom de votre projet dans sa forme la plus épurée. Vous pouvez le télécharger ci-dessous en haute résolution vectorielle (.SVG) ou image (.PNG) pour vos dossiers.
-              </p>
+        {activeView === "schema" && (
+          <div className="bg-white border border-slate-200 p-6 rounded-2xl max-w-5xl mx-auto shadow-sm space-y-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-bold text-slate-950 flex items-center gap-2">
+                  <Layers size={20} className="text-brand-600" />
+                  Schéma &amp; export
+                </h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  Logigramme exportable SVG/PNG, ou rapport PDF 1 page (résumé + schéma + postes) avec filigrane site / date / version.
+                </p>
+              </div>
+              {onExportPdf && (
+                <button
+                  type="button"
+                  onClick={onExportPdf}
+                  className="bg-brand-600 hover:bg-brand-700 text-white font-bold px-4 py-2 rounded-xl text-xs cursor-pointer"
+                >
+                  Rapport PDF 1 page
+                </button>
+              )}
             </div>
-
             <FlowchartReadonlyVisual project={project} showDownload={true} />
-
-            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs text-slate-650 space-y-2">
-              <span className="font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
-                💡 Recommandations et Qualité d'Exportation :
-              </span>
-              <ul className="list-disc list-inside space-y-1 text-slate-500 pl-2">
-                <li>Le format <b className="text-slate-800">SVG Vectoriel</b> offre une résolution infinie sans aucune pixelisation. Idéal pour l'impression haute définition, les intégrations PDF professionnelles ou vos présentations techniques.</li>
-                <li>Le format <b className="text-slate-800">PNG HD</b> est exporté avec un facteur d'échelle à double densité (2.5x), garantissant une netteté cristalline sur toutes les liseuses d'images standard ou documents bureautiques Microsoft Word / PPT.</li>
-                <li>Vous pouvez ajuster l'affichage (horizontal, vertical, manuel) et le niveau de détail (client détaillé, simplifié) en temps réel via la barre de filtres du logigramme pour adapter votre téléchargement.</li>
-              </ul>
-            </div>
-          </div>
-        )}
-
-        {/* Text Summarizer (Universal generated textbox) - Printable ignored */}
-        {activeView !== 'simulator' && activeView !== 'schema_only' && (
-          <div className="bg-slate-900 border border-slate-950 p-6 rounded-2xl max-w-4xl mx-auto shadow-sm text-left mt-8 print:hidden select-none">
-            <h3 className="text-xs uppercase font-extrabold tracking-widest text-teal-400 mb-2">📄 TRANCRIPTION ET RESUMÉ TEXTUEL AUTOMATIQUE</h3>
-            <p className="text-[11px] text-slate-400 mb-4 leading-normal">
-              Ci-dessous, retrouvez l'explication verbale textuelle du scénario, générée à la volée. Copiez ce rapport directement pour l'ajouter à vos devis, cahiers de charges ou récapitulatifs d'emails clients.
-            </p>
-            <textarea
-              id="textarea-text-summary"
-              rows={11}
-              readOnly
-              value={textSummary}
-              className="w-full bg-slate-950/80 border border-slate-800 text-teal-200/90 rounded-lg p-3 text-xs font-mono select-all focus:outline-none focus:ring-1 focus:ring-teal-500"
-            />
           </div>
         )}
       </div>

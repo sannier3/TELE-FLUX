@@ -214,7 +214,7 @@ export default function DataManagement({
   };
 
   return (
-    <div className="flex-1 overflow-hidden flex flex-col bg-transparent select-none animate-fade-in" id="data-management-panel">
+    <div className="flex-1 overflow-hidden flex flex-col select-none animate-fade-in" id="data-management-panel">
       {/* Feedback banner */}
       {csvFeedback && (
         <div className={`px-6 py-2.5 flex items-center justify-between text-xs font-bold shrink-0 shadow backdrop-blur-md ${
@@ -228,47 +228,48 @@ export default function DataManagement({
         </div>
       )}
 
-      {/* Sub tabs configuration bar */}
-      <div className="bg-white/45 backdrop-blur-md border-b border-white/20 px-6 py-1 flex items-center justify-between shrink-0 h-14 select-none">
-        <div className="flex items-center gap-3">
+      <div className="bg-white border-b border-slate-200 px-6 py-2 flex items-center justify-between shrink-0 h-14 select-none">
+        <div className="flex items-center gap-1.5">
           <button
             id="subtab-users"
+            type="button"
             onClick={() => setActiveSubTab('users')}
-            className={`px-4 py-2 text-xs font-bold rounded-lg flex items-center gap-2 transition-all cursor-pointer ${
-              activeSubTab === 'users' ? 'bg-[#2563eb] text-white shadow-md shadow-blue-500/10' : 'text-slate-600 hover:text-slate-900 hover:bg-white/5'
+            className={`px-3.5 py-2 text-xs font-semibold rounded-lg flex items-center gap-2 transition-colors cursor-pointer ${
+              activeSubTab === 'users' ? 'bg-brand-600 text-white' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
             }`}
           >
             <Users size={15} />
-            <span>Postes & Utilisateurs ({project.users.length})</span>
+            <span>Postes ({project.users.length})</span>
           </button>
-          
+
           <button
             id="subtab-lines"
+            type="button"
             onClick={() => setActiveSubTab('lines')}
-            className={`px-4 py-2 text-xs font-bold rounded-lg flex items-center gap-2 transition-all cursor-pointer ${
-              activeSubTab === 'lines' ? 'bg-[#2563eb] text-white shadow-md shadow-blue-500/10' : 'text-slate-600 hover:text-slate-900 hover:bg-white/5'
+            className={`px-3.5 py-2 text-xs font-semibold rounded-lg flex items-center gap-2 transition-colors cursor-pointer ${
+              activeSubTab === 'lines' ? 'bg-brand-600 text-white' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
             }`}
           >
             <PhoneCall size={15} />
-            <span>Lignes & Trunks ({project.lines.length})</span>
+            <span>Lignes ({project.lines.length})</span>
           </button>
 
           <button
             id="subtab-templates"
+            type="button"
             onClick={() => setActiveSubTab('templates')}
-            className={`px-4 py-2 text-xs font-bold rounded-lg flex items-center gap-2 transition-all cursor-pointer ${
-              activeSubTab === 'templates' ? 'bg-[#2563eb] text-white shadow-md shadow-blue-500/10' : 'text-slate-600 hover:text-slate-900 hover:bg-white/5'
+            className={`px-3.5 py-2 text-xs font-semibold rounded-lg flex items-center gap-2 transition-colors cursor-pointer ${
+              activeSubTab === 'templates' ? 'bg-brand-600 text-white' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
             }`}
           >
             <BookmarkCheck size={15} />
-            <span>Modèles Disponibles ({project.templates.length})</span>
+            <span>Modèles ({project.templates.length})</span>
           </button>
         </div>
 
-        {/* Global CSV instructions */}
         <div className="hidden lg:flex items-center gap-1.5 text-xs text-slate-500 font-medium">
           <HelpCircle size={14} />
-          <span>Séparateur CSV attendu : point-virgule <b>(;)</b> pour compatibilité Excel.</span>
+          <span>CSV : séparateur point-virgule <b>(;)</b></span>
         </div>
       </div>
 
@@ -277,7 +278,7 @@ export default function DataManagement({
         {activeSubTab === 'users' && (
           <div className="space-y-6">
             {/* Table actions bar */}
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-4 rounded-xl border border-slate-200 bg-white shadow-xs">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-4 rounded-xl border border-slate-200 bg-white shadow-sm">
               <div>
                 <h3 className="text-sm font-bold text-slate-800">Annuaire des Postes Utilisateurs</h3>
                 <p className="text-xs text-slate-500 mt-1">Configurez les postes IP de vos collaborateurs, l'activation des messageries et les raccordements directes.</p>
@@ -322,7 +323,7 @@ export default function DataManagement({
 
             {/* 1. Sync from Scheme Panel */}
             {nodesWithInternal.length > 0 && (
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3 animate-fade-in shadow-xs">
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3 animate-fade-in shadow-sm">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
                   <div>
                     <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
@@ -372,7 +373,7 @@ export default function DataManagement({
                         alert("Tous les éléments du schéma de conception sont déjà enregistrés dans votre annuaire !");
                       }
                     }}
-                    className="text-[10px] bg-blue-600 text-white font-extrabold px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-all cursor-pointer whitespace-nowrap shadow-xs uppercase tracking-wide shrink-0"
+                    className="text-[10px] bg-blue-600 text-white font-extrabold px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-all cursor-pointer whitespace-nowrap shadow-sm uppercase tracking-wide shrink-0"
                   >
                     Tout importer à l'annuaire
                   </button>
@@ -494,7 +495,7 @@ export default function DataManagement({
             </datalist>
 
             {/* Main Users Spreadsheet Grid */}
-            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
@@ -689,7 +690,7 @@ export default function DataManagement({
 
         {activeSubTab === 'lines' && (
           <div className="space-y-6">
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-4 rounded-xl border border-slate-200 bg-white shadow-xs">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-4 rounded-xl border border-slate-200 bg-white shadow-sm">
               <div>
                 <h3 className="text-sm font-bold text-slate-800">Gestion des Lignes de Tête & Trunks</h3>
                 <p className="text-xs text-slate-500 mt-1">Déclarez les liaisons opérateurs physiques ou logiques raccordées à votre commutateur central.</p>
@@ -733,7 +734,7 @@ export default function DataManagement({
             </div>
 
             {/* Trunks list */}
-            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="bg-slate-900 text-slate-300 font-extrabold uppercase text-[10px] tracking-wider border-b border-slate-800">
@@ -888,18 +889,18 @@ export default function DataManagement({
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {project.templates.map(tmpl => (
-                <div key={tmpl.id} className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs flex flex-col justify-between">
+                <div key={tmpl.id} className="p-4 rounded-xl border border-slate-200 bg-white shadow-sm flex flex-col justify-between">
                   <div>
                     <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-2">
                       <span className="font-bold text-slate-800 text-xs">{tmpl.name}</span>
-                      <span className="text-[10px] bg-indigo-50 border border-indigo-100 text-indigo-700 font-semibold uppercase px-1.5 py-0.5 rounded">
+                      <span className="text-[10px] bg-brand-50 border border-brand-100 text-brand-700 font-semibold uppercase px-1.5 py-0.5 rounded">
                         {tmpl.type}
                       </span>
                     </div>
                     <p className="text-xs text-slate-500 leading-normal mb-3">{tmpl.description}</p>
                     
                     {/* Display serialized internal params */}
-                    <div className="bg-slate-50 p-2.5 rounded border border-slate-150 text-[10px] text-slate-600 space-y-1 font-mono">
+                    <div className="bg-slate-50 p-2.5 rounded border border-slate-100 text-[10px] text-slate-600 space-y-1 font-mono">
                       {tmpl.properties.phoneModel && <div>• Modèle IP: {tmpl.properties.phoneModel}</div>}
                       {tmpl.properties.timeSchedule && <div>• Horaires: {tmpl.properties.timeSchedule}</div>}
                       {tmpl.properties.audioMessageName && <div>• Message: {tmpl.properties.audioMessageName}</div>}

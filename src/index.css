@@ -1,39 +1,106 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Plus Jakarta Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-brand-50: #ecfdf8;
+  --color-brand-100: #d1faf0;
+  --color-brand-200: #a7f3e0;
+  --color-brand-500: #14b8a6;
+  --color-brand-600: #0d9488;
+  --color-brand-700: #0f766e;
+  --color-brand-800: #115e59;
+  --color-brand-900: #134e4a;
+
+  --color-ink-50: #f8fafc;
+  --color-ink-100: #f1f5f9;
+  --color-ink-200: #e2e8f0;
+  --color-ink-300: #cbd5e1;
+  --color-ink-400: #94a3b8;
+  --color-ink-500: #64748b;
+  --color-ink-600: #475569;
+  --color-ink-700: #334155;
+  --color-ink-800: #1e293b;
+  --color-ink-900: #0f172a;
+  --color-ink-950: #020617;
 }
 
 :root {
-  --bg: #f4f4f7;
-  --primary: #2563eb;
-  --glass: rgba(255, 255, 255, 0.75);
-  --border-color: rgba(226, 232, 240, 0.8);
-  --glass-border: rgba(255, 255, 255, 0.45);
-  --grid-dot: rgba(148, 163, 184, 0.22);
+  --bg: #e8eef2;
+  --bg-elevated: #f7fafc;
+  --surface: #ffffff;
+  --surface-muted: #f1f5f9;
+  --primary: #0d9488;
+  --primary-hover: #0f766e;
+  --primary-soft: rgba(13, 148, 136, 0.12);
+  --border: #d5dee7;
+  --border-strong: #b8c5d1;
+  --text: #1e293b;
+  --text-muted: #64748b;
+  --danger: #e11d48;
+  --warning: #d97706;
+  --success: #059669;
+  --header-bg: #0b1220;
+  --header-border: rgba(255, 255, 255, 0.08);
+  --grid-dot: rgba(100, 116, 139, 0.22);
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --shadow-md: 0 4px 16px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 12px 40px rgba(15, 23, 42, 0.12);
+  --radius: 10px;
 }
 
-/* Animation Keyframes */
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  color: var(--text);
+  background: var(--bg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;
-    transform: scale(0.995) translateY(2px);
+    transform: translateY(4px);
   }
   to {
     opacity: 1;
-    transform: scale(1) translateY(0);
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleUp {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
   }
 }
 
 .animate-fade-in {
-  animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: fadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-/* Tutorial Animated Keyframes */
+.animate-scale-up {
+  animation: scaleUp 0.16s ease-out forwards;
+}
 
-/* 1. Label Tab Animations */
+/* Tutorial animations */
 @keyframes tutorialLabelMove {
   0%, 12% { transform: translate(0px, 0px); }
   15% { transform: translate(0px, 0px) scale(0.98); }
@@ -46,11 +113,11 @@
 @keyframes tutorialLabelCursorPos {
   0% { top: 75px; left: 230px; }
   12% { top: 75px; left: 250px; }
-  15% { top: 75px; left: 250px; transform: scale(0.85); } /* Click grab */
-  45% { top: 113px; left: 325px; transform: scale(0.85); } /* Drag */
-  48% { top: 113px; left: 325px; transform: scale(1); } /* Release */
-  55% { top: 113px; left: 325px; transform: scale(0.8); } /* Dbl click 1 */
-  58% { top: 113px; left: 325px; transform: scale(0.8); } /* Dbl click 2 */
+  15% { top: 75px; left: 250px; transform: scale(0.85); }
+  45% { top: 113px; left: 325px; transform: scale(0.85); }
+  48% { top: 113px; left: 325px; transform: scale(1); }
+  55% { top: 113px; left: 325px; transform: scale(0.8); }
+  58% { top: 113px; left: 325px; transform: scale(0.8); }
   62% { top: 113px; left: 325px; transform: scale(1); }
   75%, 100% { top: 75px; left: 230px; }
 }
@@ -69,12 +136,11 @@
   100% { opacity: 0; }
 }
 
-/* 2. Connection Mode 1: Clic-à-clic */
 @keyframes tutorialConnMode1CursorPos {
   0% { top: 30px; left: 140px; }
-  15% { top: 100px; left: 230px; transform: scale(0.85); } /* Clic (+) */
+  15% { top: 100px; left: 230px; transform: scale(0.85); }
   20% { top: 100px; left: 230px; transform: scale(1); }
-  50% { top: 100px; left: 450px; transform: scale(0.85); } /* Clic Target Inlet */
+  50% { top: 100px; left: 450px; transform: scale(0.85); }
   55% { top: 100px; left: 450px; transform: scale(1); }
   85%, 100% { top: 30px; left: 140px; }
 }
@@ -105,12 +171,11 @@
   90%, 100% { opacity: 0; }
 }
 
-/* 3. Connection Mode 2: Glisser-Déposer */
 @keyframes tutorialConnMode2CursorPos {
   0% { top: 30px; left: 140px; }
-  15% { top: 100px; left: 230px; transform: scale(0.85); } /* Press (+) */
-  50% { top: 100px; left: 450px; transform: scale(0.85); } /* Drag to Target */
-  54% { top: 100px; left: 450px; transform: scale(1); } /* Release */
+  15% { top: 100px; left: 230px; transform: scale(0.85); }
+  50% { top: 100px; left: 450px; transform: scale(0.85); }
+  54% { top: 100px; left: 450px; transform: scale(1); }
   85%, 100% { top: 30px; left: 140px; }
 }
 
@@ -121,10 +186,9 @@
   100% { opacity: 0; }
 }
 
-/* 4. Connection Mode 3: Delete Connection */
 @keyframes tutorialConnDeleteCursorPos {
   0% { top: 30px; left: 200px; }
-  20% { top: 100px; left: 280px; transform: scale(0.85); } /* Clic directly on line */
+  20% { top: 100px; left: 280px; transform: scale(0.85); }
   25% { top: 100px; left: 280px; transform: scale(1); }
   85%, 100% { top: 30px; left: 200px; }
 }
@@ -143,7 +207,6 @@
   90%, 100% { opacity: 1; visibility: visible; filter: none; }
 }
 
-/* 5. Node Cases */
 @keyframes tutorialNodeDragCard {
   0% { transform: translate(0, 0); }
   15% { transform: translate(0, 0); }
@@ -153,9 +216,9 @@
 
 @keyframes tutorialNodeDragCursor {
   0% { top: 40px; left: 100px; }
-  15% { top: 55px; left: 120px; transform: scale(0.85); } /* Grab header */
+  15% { top: 55px; left: 120px; transform: scale(0.85); }
   50% { top: 90px; left: 200px; transform: scale(0.85); }
-  55% { top: 90px; left: 200px; transform: scale(1); } /* Release */
+  55% { top: 90px; left: 200px; transform: scale(1); }
   90%, 100% { top: 40px; left: 100px; }
 }
 
@@ -178,146 +241,316 @@
   90%, 100% { width: 0px; height: 0px; opacity: 0; }
 }
 
-.animate-tutorial-label-move {
-  animation: tutorialLabelMove 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+@keyframes tutorialSearchType {
+  0%, 8% { max-width: 0; opacity: 0.4; }
+  35%, 70% { max-width: 160px; opacity: 1; }
+  90%, 100% { max-width: 160px; opacity: 0.85; }
 }
 
-.animate-tutorial-label-cursor {
-  animation: tutorialLabelCursorPos 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+@keyframes tutorialSearchHit {
+  0%, 30% { opacity: 0; transform: translateY(6px); }
+  40%, 100% { opacity: 1; transform: translateY(0); }
 }
 
-.animate-tutorial-label-ripple1 {
-  animation: tutorialLabelRipple1 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+@keyframes tutorialCloneSource {
+  0%, 20% { transform: translateX(0) scale(1); opacity: 1; }
+  45%, 70% { transform: translateX(-8px) scale(0.98); opacity: 0.9; }
+  100% { transform: translateX(0) scale(1); opacity: 1; }
 }
 
-.animate-tutorial-label-ripple2 {
-  animation: tutorialLabelRipple2 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+@keyframes tutorialCloneArrow {
+  0%, 25% { opacity: 0.2; transform: scale(0.8); }
+  40%, 75% { opacity: 1; transform: scale(1.15); }
+  100% { opacity: 0.4; transform: scale(1); }
 }
 
-.animate-tutorial-conn-mode1-cursor {
-  animation: tutorialConnMode1CursorPos 5s ease-in-out infinite;
+@keyframes tutorialCloneCopy {
+  0%, 30% { opacity: 0; transform: translateX(-20px) scale(0.9); }
+  45%, 85% { opacity: 1; transform: translateX(0) scale(1); }
+  100% { opacity: 0.7; transform: translateX(0) scale(1); }
 }
 
-.animate-tutorial-conn-mode1-ripple-outlet {
-  animation: tutorialConnMode1RippleOutlet 5s ease-in-out infinite;
+@keyframes tutorialDensityActive {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(13, 148, 136, 0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(13, 148, 136, 0); }
 }
 
-.animate-tutorial-conn-mode1-ripple-inlet {
-  animation: tutorialConnMode1RippleInlet 5s ease-in-out infinite;
+@keyframes tutorialDensityCard {
+  0%, 15% { max-height: 48px; }
+  40%, 70% { max-height: 90px; }
+  90%, 100% { max-height: 48px; }
 }
 
-.animate-tutorial-conn-mode1-preview {
-  animation: tutorialConnMode1PreviewLine 5s ease-in-out infinite;
+.animate-tutorial-label-move { animation: tutorialLabelMove 6s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
+.animate-tutorial-label-cursor { animation: tutorialLabelCursorPos 6s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
+.animate-tutorial-label-ripple1 { animation: tutorialLabelRipple1 6s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
+.animate-tutorial-label-ripple2 { animation: tutorialLabelRipple2 6s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
+.animate-tutorial-conn-mode1-cursor { animation: tutorialConnMode1CursorPos 5s ease-in-out infinite; }
+.animate-tutorial-conn-mode1-ripple-outlet { animation: tutorialConnMode1RippleOutlet 5s ease-in-out infinite; }
+.animate-tutorial-conn-mode1-ripple-inlet { animation: tutorialConnMode1RippleInlet 5s ease-in-out infinite; }
+.animate-tutorial-conn-mode1-preview { animation: tutorialConnMode1PreviewLine 5s ease-in-out infinite; }
+.animate-tutorial-conn-mode1-solid { animation: tutorialConnMode1SolidLine 5s ease-in-out infinite; }
+.animate-tutorial-conn-mode2-cursor { animation: tutorialConnMode2CursorPos 5s ease-in-out infinite; }
+.animate-tutorial-conn-mode2-ripple { animation: tutorialConnMode2Ripple 5s ease-in-out infinite; }
+.animate-tutorial-conn-delete-cursor { animation: tutorialConnDeleteCursorPos 4s ease-in-out infinite; }
+.animate-tutorial-conn-delete-ripple { animation: tutorialConnDeleteRipple 4s ease-in-out infinite; }
+.animate-tutorial-conn-delete-state { animation: tutorialConnDeleteLineState 4s ease-in-out infinite; }
+.animate-tutorial-node-drag-card { animation: tutorialNodeDragCard 5s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
+.animate-tutorial-node-drag-cursor { animation: tutorialNodeDragCursor 5s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
+.animate-tutorial-node-space1 { animation: tutorialNodeSpace1 4s ease-in-out infinite; }
+.animate-tutorial-node-space2 { animation: tutorialNodeSpace2 4s ease-in-out infinite; }
+.animate-tutorial-marquee-box { animation: tutorialMarqueeBox 5s ease-in-out infinite; }
+.animate-tutorial-search-type { animation: tutorialSearchType 4s ease-in-out infinite; display: inline-block; }
+.animate-tutorial-search-hit { animation: tutorialSearchHit 4s ease-in-out infinite; }
+.animate-tutorial-clone-source { animation: tutorialCloneSource 4.5s ease-in-out infinite; }
+.animate-tutorial-clone-arrow { animation: tutorialCloneArrow 4.5s ease-in-out infinite; }
+.animate-tutorial-clone-copy { animation: tutorialCloneCopy 4.5s ease-in-out infinite; }
+.animate-tutorial-density-active { animation: tutorialDensityActive 2s ease-out infinite; }
+.animate-tutorial-density-card { animation: tutorialDensityCard 4.5s ease-in-out infinite; overflow: hidden; }
+
+/* Surfaces */
+.tf-app {
+  background:
+    radial-gradient(ellipse 80% 50% at 0% -10%, rgba(13, 148, 136, 0.08), transparent 50%),
+    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(15, 23, 42, 0.04), transparent 45%),
+    var(--bg);
 }
 
-.animate-tutorial-conn-mode1-solid {
-  animation: tutorialConnMode1SolidLine 5s ease-in-out infinite;
+.tf-panel {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
 }
 
-.animate-tutorial-conn-mode2-cursor {
-  animation: tutorialConnMode2CursorPos 5s ease-in-out infinite;
+.tf-panel-right {
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
 }
 
-.animate-tutorial-conn-mode2-ripple {
-  animation: tutorialConnMode2Ripple 5s ease-in-out infinite;
+.tf-header {
+  background: var(--header-bg);
+  border-bottom: 1px solid var(--header-border);
+  color: #fff;
 }
 
-.animate-tutorial-conn-delete-cursor {
-  animation: tutorialConnDeleteCursorPos 4s ease-in-out infinite;
+.tf-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  cursor: pointer;
 }
 
-.animate-tutorial-conn-delete-ripple {
-  animation: tutorialConnDeleteRipple 4s ease-in-out infinite;
+.tf-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
-.animate-tutorial-conn-delete-state {
-  animation: tutorialConnDeleteLineState 4s ease-in-out infinite;
+.tf-btn-primary {
+  background: var(--primary);
+  color: #fff;
+  border: 1px solid transparent;
 }
 
-.animate-tutorial-node-drag-card {
-  animation: tutorialNodeDragCard 5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+.tf-btn-primary:hover:not(:disabled) {
+  background: var(--primary-hover);
 }
 
-.animate-tutorial-node-drag-cursor {
-  animation: tutorialNodeDragCursor 5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+.tf-btn-ghost {
+  background: rgba(255, 255, 255, 0.06);
+  color: #cbd5e1;
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.animate-tutorial-node-space1 {
-  animation: tutorialNodeSpace1 4s ease-in-out infinite;
+.tf-btn-ghost:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
 }
 
-.animate-tutorial-node-space2 {
-  animation: tutorialNodeSpace2 4s ease-in-out infinite;
+.tf-btn-danger {
+  background: rgba(225, 29, 72, 0.15);
+  color: #fecdd3;
+  border: 1px solid rgba(225, 29, 72, 0.35);
 }
 
-.animate-tutorial-marquee-box {
-  animation: tutorialMarqueeBox 5s ease-in-out infinite;
+.tf-btn-danger:hover:not(:disabled) {
+  background: rgba(225, 29, 72, 0.35);
+  color: #fff;
 }
 
-/* Frosted Glass Core Classes */
+.tf-tab {
+  border-radius: 8px;
+  padding: 0.5rem 1rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #94a3b8;
+  transition: all 0.15s ease;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: none;
+  background: transparent;
+}
+
+.tf-tab:hover {
+  color: #e2e8f0;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.tf-tab-active {
+  background: var(--primary);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(13, 148, 136, 0.35);
+}
+
+.tf-tab-active:hover {
+  background: var(--primary-hover);
+  color: #fff;
+}
+
+.tf-input {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: #fff;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.tf-input:focus {
+  border-color: var(--brand-500);
+  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.25);
+}
+
+.tf-input-light {
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 0.4rem 0.65rem;
+  font-size: 0.8125rem;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  width: 100%;
+}
+
+.tf-input-light:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-soft);
+  background: #fff;
+}
+
 .glass-panel {
-  background: rgba(255, 255, 255, 0.65);
-  backdrop-filter: blur(12px) saturate(120%);
-  -webkit-backdrop-filter: blur(12px) saturate(120%);
-  border: 1px solid rgba(255, 255, 255, 0.45);
-  box-shadow: 0 8px 32px 0 rgba(148, 163, 184, 0.08);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
 }
 
 .glass-panel-dark {
-  background: rgba(15, 23, 42, 0.7);
-  backdrop-filter: blur(14px) saturate(110%);
-  -webkit-backdrop-filter: blur(14px) saturate(110%);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+  background: var(--header-bg);
+  border: 1px solid var(--header-border);
 }
 
 .glass-node {
-  background: rgba(255, 255, 255, 0.82);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  box-shadow: 0 4px 14px 0 rgba(148, 163, 184, 0.12);
+  background: #fff;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
 }
 
 .glass-node-selected {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(8px);
-  border: 2px solid #2563eb;
-  box-shadow: 0 6px 20px 0 rgba(37, 99, 235, 0.12), 0 0 0 4px rgba(37, 99, 235, 0.1);
+  background: #fff;
+  border: 2px solid var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-soft), var(--shadow-md);
 }
 
 .glass-node-warning {
-  background: rgba(254, 243, 199, 0.8);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(245, 158, 11, 0.5);
-  box-shadow: 0 4px 14px 0 rgba(245, 158, 11, 0.1);
+  background: #fffbeb;
+  border: 1px solid #f59e0b;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.15);
 }
 
-/* Custom transitions and scrollbars */
+.bg-ambient-mesh {
+  background: transparent;
+}
+
+.tf-canvas-grid {
+  background-color: #f0f4f8;
+  background-image: radial-gradient(var(--grid-dot) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.tf-toolbar {
+  background: rgba(255, 255, 255, 0.92);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(8px);
+}
+
+.tf-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 6px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.tf-chip-accent {
+  background: var(--primary-soft);
+  border-color: rgba(13, 148, 136, 0.25);
+  color: var(--brand-800);
+}
+
+/* Cohérence panneau propriétés (teintes brand au lieu de bleu générique) */
+.tf-panel-right .bg-blue-50\/40 {
+  background-color: rgba(13, 148, 136, 0.06);
+}
+.tf-panel-right .border-blue-100 {
+  border-color: rgba(13, 148, 136, 0.2);
+}
+.tf-panel-right .text-blue-900 {
+  color: #134e4a;
+}
+.tf-panel-right .bg-blue-600 {
+  background-color: #0d9488;
+}
+
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.02);
-  border-radius: 9999px;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.3);
+  background: #c5d0db;
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.55);
+  background: #94a3b8;
 }
 
-/* Soft ambient flow for backgrounds */
-.bg-ambient-mesh {
-  background-color: #f4f4f7;
-  background-image: 
-    radial-gradient(at 0% 0%, rgba(37, 99, 235, 0.05) 0px, transparent 50%),
-    radial-gradient(at 100% 0%, rgba(16, 185, 129, 0.04) 0px, transparent 50%),
-    radial-gradient(at 50% 100%, rgba(99, 102, 241, 0.06) 0px, transparent 50%);
+@media print {
+  .tf-header,
+  .tf-toolbar,
+  #sidebar-panel,
+  #property-panel-active,
+  #property-panel-empty {
+    display: none !important;
+  }
 }

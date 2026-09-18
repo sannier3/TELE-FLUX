@@ -4,31 +4,46 @@
  */
 
 export type NodeType =
-  | 'ndi'                       // numéro NDI
-  | 'sda'                       // numéro SDA
-  | 'nds'                       // numéro NDS
-  | 'incoming_num'              // numéro entrant
-  | 'outgoing_num'              // numéro sortant
-  | 'user_station'              // poste utilisateur
-  | 'direct_line'               // ligne directe
-  | 'extension'                 // extension
-  | 'ivr'                       // AVI ou serveur vocal interactif
-  | 'call_group'                // groupe d’appel
-  | 'queue'                     // file d’attente
-  | 'transfer'                  // transfert d’appel
-  | 'forward_unconditional'      // renvoi inconditionnel
-  | 'forward_no_answer'          // renvoi sur non-réponse
-  | 'forward_busy'              // renvoi sur occupation
-  | 'voicemail'                 // messagerie vocale
-  | 'custom_audio'              // message vocal personnalisé
-  | 'time_range'                // plage horaire
-  | 'day_night'                 // règle jour/nuit
-  | 'external_destination'      // destination externe
-  | 'mobile_external'           // mobile ou numéro externe
-  | 'switchboard'               // standard
-  | 'greeting'                  // accueil téléphonique
-  | 'hangup'                    // fin d'appel / raccrocher
-  | 'emergency_overflow';       // scénario d’urgence ou débordement
+  | 'ndi'
+  | 'sda'
+  | 'nds'
+  | 'incoming_num'
+  | 'outgoing_num'
+  | 'sip_trunk'
+  | 'user_station'
+  | 'direct_line'
+  | 'extension'
+  | 'softphone'
+  | 'mobile_pbu'
+  | 'ivr'
+  | 'call_group'
+  | 'queue'
+  | 'conference'
+  | 'parking'
+  | 'paging'
+  | 'disa'
+  | 'cid_route'
+  | 'outbound_route'
+  | 'transfer'
+  | 'forward_unconditional'
+  | 'forward_no_answer'
+  | 'forward_busy'
+  | 'boss_secretary'
+  | 'feature_code'
+  | 'blacklist'
+  | 'voicemail'
+  | 'custom_audio'
+  | 'time_range'
+  | 'day_night'
+  | 'holiday'
+  | 'external_destination'
+  | 'mobile_external'
+  | 'switchboard'
+  | 'greeting'
+  | 'fax'
+  | 'hangup'
+  | 'junction'
+  | 'emergency_overflow';
 
 export interface CallNode {
   id: string;
@@ -52,8 +67,36 @@ export interface CallNode {
     techComment?: string;       // technician-specific comment
     clientComment?: string;     // client-friendly comment
     additionalOptions?: string[]; // e.g., ["Enregistrement d'appel", "Musique d'attente"]
-    groupType?: string; // e.g. "simultaneous", "sequential", "rotative"
-    ringTime?: string; // e.g. "20s"
+    /** Mode de distribution groupe / file : simultaneous | linear | cyclic | memory | longest_idle | fewest_calls | random */
+    groupType?: string;
+    ringTime?: string; // e.g. "20s" (legacy)
+    /** Extensions / agents membres (une par ligne ou séparées par virgule) */
+    queueMembers?: string;
+    /** Temps de sonnerie par agent (s) avant passage au suivant */
+    agentRingTimeout?: number;
+    /** Capacité max de la file (appelants en attente) */
+    maxCallersInQueue?: number;
+    /** Musique / annonce d'attente */
+    musicOnHold?: string;
+    announcePosition?: boolean;
+    announceHoldTime?: boolean;
+    periodicAnnounceFile?: string;
+    periodicAnnounceInterval?: number;
+    /** Temps de wrap-up / ACW après décroché (s) */
+    wrapUpTime?: number;
+    skipBusyAgents?: boolean;
+    joinWhenEmpty?: boolean;
+    leaveWhenEmpty?: boolean;
+    callbackEnabled?: boolean;
+    /** Action / destination de débordement (timeout, file pleine…) */
+    overflowAction?: string;
+    /** SVI : délai DTMF (s) */
+    digitTimeout?: number;
+    maxInvalidDigits?: number;
+    invalidDestination?: string;
+    timeoutDestination?: string;
+    /** Menu DTMF résumé (ex: 1=Commercial; 2=Support) */
+    ivrMenuMap?: string;
     
     // Add custom advanced fields
     forwardType?: 'manual' | 'scheduled' | 'none'; // Forward type
@@ -112,11 +155,51 @@ export interface CallNode {
     hideExternalNumber?: boolean;
     hidePabxBadge?: boolean;
 
+    /** Densité d'affichage sur le canevas : compact | standard | detailed */
+    displayDensity?: 'compact' | 'standard' | 'detailed';
+
     // Option PABX sur mobile (ex: SFR PBU / Convergence Fixe-Mobile)
     hasPabxOption?: boolean;
-    pabxOperator?: string; // ex: "SFR Business (PBU)", "Orange Business", "Bouygues Telecom", "Autre"
-    pabxOptionDetails?: string; // ex: "Poste Business Unifié (PBU) - Convergence Fixe-Mobile, Supervision, Transferts"
+    pabxOperator?: string;
+    pabxOptionDetails?: string;
     pabxMobileNumber?: string;
+
+    /** Trunk SIP / opérateur */
+    trunkChannels?: number;
+    trunkProvider?: string;
+    codecPreference?: string;
+    didRange?: string;
+    /** DISA / codes / conférence */
+    pinCode?: string;
+    maxParticipants?: number;
+    /** Parking */
+    parkingSlots?: string;
+    parkingTimeout?: number;
+    /** Paging */
+    pageZone?: string;
+    /** Routage par appelant (CID) — motifs / préfixes */
+    cidPatterns?: string;
+    /** Boss / secrétaire */
+    bossExtension?: string;
+    secretaryExtension?: string;
+    /** Code fonction (*xx) */
+    featureCode?: string;
+    /** Liste noire / blanche */
+    listMode?: 'blacklist' | 'whitelist';
+    /** Fax */
+    faxEmail?: string;
+    /** Softphone / client mobile / FMC */
+    simultaneousRing?: boolean;
+    /** Client softphone / app mobile IPBX (tous éditeurs) */
+    mobileAppEnabled?: boolean;
+    /** @deprecated préférer mobileAppEnabled */
+    linkusEnabled?: boolean;
+    webrtcEnabled?: boolean;
+    /** Messagerie */
+    voicemailToEmail?: boolean;
+    voicemailEmail?: string;
+    recordingMode?: string;
+    hangupCause?: string;
   };
 }
 
@@ -174,9 +257,51 @@ export interface TelecomProject {
   author: string;
   createdAt: string;
   updatedAt: string;
+  /** Version lisible du schéma (ex. 1.4) */
+  version?: string;
   lines: PhoneLine[];
   users: DirectoryUser[];
   templates: ReusableTemplate[];
   nodes: CallNode[];
   connections: Connection[];
+  /** Zones / cadres libres sur le canevas */
+  annotations?: CanvasAnnotation[];
+  /** Nœuds dont la branche descendante est repliée */
+  collapsedNodeIds?: string[];
+  /** Journal des changements */
+  changeLog?: ChangeLogEntry[];
+  /** Instantanés pour comparaison avant/après */
+  snapshots?: ProjectSnapshot[];
+}
+
+export interface CanvasAnnotation {
+  id: string;
+  label: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  color?: string;
+}
+
+export interface ChangeLogEntry {
+  id: string;
+  at: string;
+  summary: string;
+  detail?: string;
+}
+
+export interface ProjectSnapshot {
+  id: string;
+  label: string;
+  at: string;
+  /** Copie partielle pour comparaison (nodes + connections + meta) */
+  data: {
+    projectName: string;
+    siteName: string;
+    version?: string;
+    nodes: CallNode[];
+    connections: Connection[];
+    annotations?: CanvasAnnotation[];
+  };
 }

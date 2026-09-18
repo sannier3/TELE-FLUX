@@ -210,19 +210,33 @@ export const OTHER_MODELS: Record<string, string[]> = {
 
 export const PLATFORMS = [
   'Yeastar P-Series',
+  'Yeastar S-Series',
   'SFR Business PBU',
+  'Orange Business FMC',
+  'Bouygues Telecom Entreprises',
   '3CX',
   'FreePBX',
   'Asterisk',
+  'VitalPBX',
+  'Issabel',
   'Centrex opérateur',
   'DSTNY',
+  'Sewan',
+  'Keyyo',
+  'Alcatel-Lucent OXE / OXO',
+  'Mitel MiVoice',
+  'Microsoft Teams Direct Routing',
   'Autre'
 ];
 
 export const CONFIG_METHODS = [
   'règle entrante',
   'règle sortante',
+  'inbound route',
+  'outbound route',
   'condition horaire',
+  'office hours / holiday',
+  'call flow',
   'code fonction',
   'touche BLF',
   'touche DSS',
@@ -230,6 +244,9 @@ export const CONFIG_METHODS = [
   'paramètre extension',
   'paramètre opérateur',
   'paramètre IPBX',
+  'trunk SIP',
+  'softphone / client mobile',
+  'option mobile unifié / FMC',
   'configuration manuelle',
   'configuration personnalisée'
 ];

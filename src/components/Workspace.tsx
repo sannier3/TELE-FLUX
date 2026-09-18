@@ -23,21 +23,49 @@ import {
   PhoneIncoming,
   PhoneOutgoing,
   AlertCircle,
-  Sparkles,
+  AlignHorizontalDistributeCenter,
   ZoomIn,
   ZoomOut,
   Download,
   Image,
   Maximize2,
   Minimize2,
-  Edit3
+  Edit3,
+  Cable,
+  Monitor,
+  KeyRound,
+  Radio,
+  Ban,
+  Printer,
+  Route,
+  CalendarOff,
+  UserCog,
+  Filter,
+  CircleParking,
+  Waypoints,
+  ChevronDown,
+  ChevronRight as ChevronRightIcon,
+  Square,
+  Search
 } from 'lucide-react';
-import { CallNode, Connection, NodeType } from '../types';
+import { CallNode, Connection, NodeType, CanvasAnnotation } from '../types';
 import { NODE_METADATA } from '../utils/templates';
+import { distributionModeLabel } from '../data/telephonyOptions';
+import {
+  getNodePrimaryLine,
+  getNodeSecondaryLine,
+  shouldShowBadges,
+  maxBadgesForNode,
+  getDisplayDensity,
+} from '../utils/nodeDisplay';
+import { getDescendantIds, getHiddenNodeIds } from '../utils/graphHelpers';
+import CanvasNavTools from './CanvasNavTools';
 
 interface WorkspaceProps {
   nodes: CallNode[];
   connections: Connection[];
+  annotations?: CanvasAnnotation[];
+  collapsedNodeIds?: string[];
   selectedNodeId: string | null;
   selectedNodeIds?: string[];
   onSelectNode: (id: string | null) => void;
@@ -48,6 +76,8 @@ interface WorkspaceProps {
   onAddConnection: (sourceId: string, targetId: string, label: string) => void;
   onDeleteConnection: (id: string) => void;
   onUpdateConnectionLabel: (id: string, label: string, labels?: string[], labelOffset?: { x: number; y: number } | null) => void;
+  onToggleCollapse?: (nodeId: string) => void;
+  onUpdateAnnotations?: (annotations: CanvasAnnotation[]) => void;
   validationAlerts: { id: string; type: 'error' | 'warning'; message: string; nodeId?: string }[];
   onLoadDemo?: () => void;
   onDragStart?: () => void;
@@ -58,6 +88,8 @@ interface WorkspaceProps {
 export default function Workspace({
   nodes,
   connections,
+  annotations = [],
+  collapsedNodeIds = [],
   selectedNodeId,
   selectedNodeIds = [],
   onSelectNode,
@@ -68,6 +100,8 @@ export default function Workspace({
   onAddConnection,
   onDeleteConnection,
   onUpdateConnectionLabel,
+  onToggleCollapse,
+  onUpdateAnnotations,
   validationAlerts,
   onLoadDemo,
   onDragStart,
@@ -76,6 +110,9 @@ export default function Workspace({
 }: WorkspaceProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const hasMovedNode = useRef(false);
+  const dragRafRef = useRef<number | null>(null);
+  const pendingDragUpdates = useRef<{ id: string; x: number; y: number }[] | null>(null);
+  const [livePositions, setLivePositions] = useState<Record<string, { x: number; y: number }> | null>(null);
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
   const [initialDragPositions, setInitialDragPositions] = useState<{ [id: string]: { x: number; y: number } }>({});
   const [dragStartMouse, setDragStartMouse] = useState({ x: 0, y: 0 });
@@ -86,6 +123,108 @@ export default function Workspace({
   const [dragLabelStartMouse, setDragLabelStartMouse] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [dragLabelInitialOffset, setDragLabelInitialOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [isTutorialOpen, setIsTutorialOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [annotationMode, setAnnotationMode] = useState(false);
+  const [drawingAnnot, setDrawingAnnot] = useState<{ x: number; y: number } | null>(null);
+  const [viewportBox, setViewportBox] = useState({ left: 0, top: 0, w: 2000, h: 1200 });
+
+  const hiddenIds = React.useMemo(
+    () => getHiddenNodeIds(collapsedNodeIds, connections, nodes),
+    [collapsedNodeIds, connections, nodes]
+  );
+
+  const visibleNodes = React.useMemo(
+    () => nodes.filter((n) => !hiddenIds.has(n.id)),
+    [nodes, hiddenIds]
+  );
+
+  const visibleConnections = React.useMemo(
+    () => connections.filter((c) => !hiddenIds.has(c.sourceId) && !hiddenIds.has(c.targetId)),
+    [connections, hiddenIds]
+  );
+
+  const NODE_CARD_W = 190;
+  const CANVAS_MIN_W = 2000;
+  const CANVAS_MIN_H = 1400;
+  const CANVAS_PAD = 480;
+
+  const getResolvedPos = (node: CallNode) => {
+    const live = livePositions?.[node.id];
+    return live ? live : { x: node.x, y: node.y };
+  };
+
+  const canvasSize = React.useMemo(() => {
+    let maxX = CANVAS_MIN_W;
+    let maxY = CANVAS_MIN_H;
+    visibleNodes.forEach((node) => {
+      const pos = getResolvedPos(node);
+      const density = getDisplayDensity(node);
+      const h = domHeights[node.id] || (density === 'compact' ? 56 : density === 'standard' ? 78 : 110);
+      maxX = Math.max(maxX, pos.x + NODE_CARD_W + CANVAS_PAD);
+      maxY = Math.max(maxY, pos.y + h + CANVAS_PAD);
+    });
+    annotations.forEach((a) => {
+      maxX = Math.max(maxX, a.x + a.width + CANVAS_PAD);
+      maxY = Math.max(maxY, a.y + a.height + CANVAS_PAD);
+    });
+    return { width: Math.ceil(maxX), height: Math.ceil(maxY) };
+  }, [visibleNodes, livePositions, domHeights, annotations]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable) return;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const sync = () => {
+      setViewportBox({
+        left: el.scrollLeft - 240,
+        top: el.scrollTop - 240,
+        w: el.clientWidth + 480,
+        h: el.clientHeight + 480,
+      });
+    };
+    sync();
+    el.addEventListener('scroll', sync, { passive: true });
+    return () => el.removeEventListener('scroll', sync);
+  }, []);
+
+  const focusNode = (id: string) => {
+    onSelectNode(id);
+    onSelectNodes?.([id]);
+    const node = nodes.find((n) => n.id === id);
+    const el = containerRef.current;
+    if (!node || !el) return;
+    el.scrollTo({
+      left: Math.max(0, node.x - el.clientWidth / 2 + 95),
+      top: Math.max(0, node.y - el.clientHeight / 2 + 55),
+      behavior: 'smooth',
+    });
+  };
+
+  const nodesInView = React.useMemo(() => {
+    if (livePositions) return visibleNodes;
+    return visibleNodes.filter((n) => {
+      const pos = getResolvedPos(n);
+      return (
+        pos.x + NODE_CARD_W >= viewportBox.left
+        && pos.x <= viewportBox.left + viewportBox.w
+        && pos.y + 120 >= viewportBox.top
+        && pos.y <= viewportBox.top + viewportBox.h
+      );
+    });
+  }, [visibleNodes, viewportBox, livePositions]);
 
   React.useLayoutEffect(() => {
     const newHeights: Record<string, number> = {};
@@ -239,7 +378,16 @@ export default function Workspace({
     
     if (props.forwardDestination) list.push({ label: "Dest. Renvoi", value: props.forwardDestination });
     if (props.forwardType && props.forwardType !== 'none') list.push({ label: "Type Renvoi", value: props.forwardType === 'manual' ? 'Manuel' : 'Automatique/Horaire' });
-    if (props.delayBeforeForward) list.push({ label: "Délai / Timeout", value: `${props.delayBeforeForward}s` });
+    if (props.delayBeforeForward && props.delayBeforeForward > 0) list.push({ label: "Délai / Timeout", value: `${props.delayBeforeForward}s` });
+    if (props.groupType) list.push({ label: "Distribution", value: distributionModeLabel(props.groupType) });
+    if (props.agentRingTimeout) list.push({ label: "Sonnerie agent", value: `${props.agentRingTimeout}s` });
+    if (props.maxCallersInQueue) list.push({ label: "Max en file", value: String(props.maxCallersInQueue) });
+    if (props.musicOnHold) list.push({ label: "MOH", value: props.musicOnHold });
+    if (props.overflowAction) list.push({ label: "Débordement", value: props.overflowAction });
+    if (props.queueMembers) {
+      const count = props.queueMembers.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean).length;
+      if (count) list.push({ label: "Membres", value: String(count) });
+    }
     if (props.priorityLevel) list.push({ label: "Urgence", value: props.priorityLevel });
     if (props.nodeStatus) list.push({ label: "Statut courant", value: props.nodeStatusCustom || props.nodeStatus });
     
@@ -331,7 +479,7 @@ export default function Workspace({
     const mouseX = (e.clientX - rect.left + containerRef.current.scrollLeft) / zoom;
     const mouseY = (e.clientY - rect.top + containerRef.current.scrollTop) / zoom;
 
-    // 1. Handle node dragging or multi-dragging
+    // 1. Handle node dragging or multi-dragging (local only — commit on mouseup)
     if (draggingNodeId) {
       if (!hasMovedNode.current) {
         hasMovedNode.current = true;
@@ -351,22 +499,27 @@ export default function Workspace({
         let nextX = initial.x + dx;
         let nextY = initial.y + dy;
 
-        // Snapping to 10px grid
         nextX = Math.round(nextX / 10) * 10;
         nextY = Math.round(nextY / 10) * 10;
-
-        // Keep within boundaries (prevent nodes leaking out of the bounds/screen)
-        nextX = Math.max(10, Math.min(2200, nextX));
-        nextY = Math.max(10, Math.min(1650, nextY));
+        nextX = Math.max(10, nextX);
+        nextY = Math.max(10, nextY);
 
         updates.push({ id, x: nextX, y: nextY });
       });
 
       if (updates.length > 0) {
-        if (onUpdateNodesCoords) {
-          onUpdateNodesCoords(updates);
-        } else {
-          updates.forEach(u => onUpdateNodeCoords(u.id, u.x, u.y));
+        pendingDragUpdates.current = updates;
+        if (dragRafRef.current == null) {
+          dragRafRef.current = requestAnimationFrame(() => {
+            dragRafRef.current = null;
+            const pending = pendingDragUpdates.current;
+            if (!pending) return;
+            const next: Record<string, { x: number; y: number }> = {};
+            pending.forEach((u) => {
+              next[u.id] = { x: u.x, y: u.y };
+            });
+            setLivePositions(next);
+          });
         }
       }
     }
@@ -468,6 +621,34 @@ export default function Workspace({
       }
     }
 
+    // Commit local drag positions once (avoids re-rendering App + localStorage every pixel)
+    if (draggingNodeId && hasMovedNode.current) {
+      const pending = pendingDragUpdates.current;
+      let commitMap: { id: string; x: number; y: number }[] = [];
+      if (pending) {
+        commitMap = pending;
+      } else if (livePositions) {
+        commitMap = Object.keys(livePositions).map((id) => ({
+          id,
+          x: livePositions[id].x,
+          y: livePositions[id].y,
+        }));
+      }
+      if (commitMap.length > 0) {
+        if (onUpdateNodesCoords) {
+          onUpdateNodesCoords(commitMap);
+        } else {
+          commitMap.forEach((u) => onUpdateNodeCoords(u.id, u.x, u.y));
+        }
+      }
+    }
+    if (dragRafRef.current != null) {
+      cancelAnimationFrame(dragRafRef.current);
+      dragRafRef.current = null;
+    }
+    pendingDragUpdates.current = null;
+    setLivePositions(null);
+
     setDraggingNodeId(null);
     setDraggingLabelId(null);
     setSelectionBoxStart(null);
@@ -551,9 +732,9 @@ export default function Workspace({
           let nextX = Math.round(node.x + moveX);
           let nextY = Math.round(node.y + moveY);
 
-          // Boundaries checking (ensures cards NEVER overflow the viewport/canvas)
-          nextX = Math.max(10, Math.min(2200, nextX));
-          nextY = Math.max(10, Math.min(1650, nextY));
+          // Keep cards on the canvas (infinite growth — only min bound)
+          nextX = Math.max(10, nextX);
+          nextY = Math.max(10, nextY);
 
           if (nextX !== node.x || nextY !== node.y) {
             moved = true;
@@ -628,12 +809,16 @@ export default function Workspace({
     if (el && el.offsetHeight > 0) {
       return el.offsetHeight;
     }
-    let base = 110;
-    if (node.type === 'voicemail' && node.properties?.showVoicemailTextOnNode && node.properties?.voicemailText) {
+    const density = getDisplayDensity(node);
+    let base = density === 'compact' ? 56 : density === 'standard' ? 78 : 110;
+    if (!node.properties?.hidePrimaryDetails) {
+      base += density === 'compact' ? 4 : 8;
+    }
+    if (density === 'detailed' && shouldShowBadges(node)) base += 16;
+    if (density === 'detailed' && !node.properties?.hideMetadata) base += 18;
+    if (node.type === 'voicemail' && density === 'detailed' && node.properties?.showVoicemailTextOnNode && node.properties?.voicemailText) {
       const lineCount = node.properties.voicemailText.split('\n').length;
-      base += Math.max(30, lineCount * 12);
-    } else if (node.properties?.description && node.properties.description.length > 25) {
-      base += 15;
+      base += Math.max(24, lineCount * 12);
     }
     return base;
   };
@@ -641,37 +826,40 @@ export default function Workspace({
   const getNodeCenter = (nodeId: string) => {
     const node = nodes.find(n => n.id === nodeId);
     if (!node) return { x: 0, y: 0 };
+    const pos = getResolvedPos(node);
     const h = getNodeCardHeight(node);
     return {
-      x: node.x + 95,
-      y: node.y + (h / 2)
+      x: pos.x + 95,
+      y: pos.y + (h / 2)
     };
   };
 
   const getNodeOutlet = (nodeId: string) => {
     const node = nodes.find(n => n.id === nodeId);
     if (!node) return { x: 0, y: 0 };
+    const pos = getResolvedPos(node);
     const h = getNodeCardHeight(node);
     return {
-      x: node.x + 190,
-      y: node.y + (h / 2)
+      x: pos.x + 190,
+      y: pos.y + (h / 2)
     };
   };
 
   const getNodeInlet = (nodeId: string) => {
     const node = nodes.find(n => n.id === nodeId);
     if (!node) return { x: 0, y: 0 };
+    const pos = getResolvedPos(node);
     const h = getNodeCardHeight(node);
     return {
-      x: node.x,
-      y: node.y + (h / 2)
+      x: pos.x,
+      y: pos.y + (h / 2)
     };
   };
 
   // Pre-calculate positions of connection labels to avoid overlap in the interactive design canvas
   const resolvedLabels = React.useMemo(() => {
     // 1. Gather default coordinates & dimensions for all labels
-    const rawLabels = connections.map(conn => {
+    const rawLabels = visibleConnections.map(conn => {
       const start = getNodeOutlet(conn.sourceId);
       const end = getNodeInlet(conn.targetId);
       if (!start || !end) {
@@ -714,12 +902,20 @@ export default function Workspace({
     }).filter(l => l.w > 0);
 
     // 2. Map nodes as obstacles
-    const nodeObstacles = nodes.map(node => ({
-      x: node.x,
-      y: node.y,
-      w: 190,
-      h: getNodeCardHeight(node)
-    }));
+    const nodeObstacles = visibleNodes.map(node => {
+      const pos = getResolvedPos(node);
+      return {
+        x: pos.x,
+        y: pos.y,
+        w: 190,
+        h: getNodeCardHeight(node)
+      };
+    });
+
+    // During drag: skip expensive collision resolution (midpoints only)
+    if (livePositions) {
+      return rawLabels.map(l => ({ ...l }));
+    }
 
     // 3. Resolve overlaps iteratively
     const resolvedCoords = rawLabels.map(l => ({ ...l }));
@@ -812,7 +1008,7 @@ export default function Workspace({
     }
 
     return resolvedCoords;
-  }, [connections, nodes]);
+  }, [visibleConnections, visibleNodes, livePositions, domHeights]);
 
   const getIcon = (iconName: string, category: string) => {
     const cls = "w-4 h-4";
@@ -824,7 +1020,7 @@ export default function Workspace({
       case 'hash':
         return <AlertCircle className={`${cls} text-teal-600`} />;
       case 'phone':
-        return <PhoneIncoming className={`${cls} text-indigo-600`} />;
+        return <PhoneIncoming className={`${cls} text-brand-600`} />;
       case 'phone-outgoing':
         return <PhoneOutgoing className={`${cls} text-slate-500`} />;
       case 'user':
@@ -848,13 +1044,39 @@ export default function Workspace({
       case 'volume2':
         return <Volume2 className={`${cls} text-red-500`} />;
       case 'sun':
-        return <Clock className={`${cls} text-indigo-500`} />;
+        return <Clock className={`${cls} text-brand-500`} />;
       case 'external-link':
         return <Link2 className={`${cls} text-blue-500`} />;
       case 'smartphone':
         return <Smartphone className={`${cls} text-cyan-500`} />;
       case 'shield-alert':
-        return <AlertTriangle className={`${cls} text-red-600 animate-bounce`} />;
+        return <AlertTriangle className={`${cls} text-red-600`} />;
+      case 'cable':
+        return <Cable className={`${cls} text-emerald-800`} />;
+      case 'monitor':
+        return <Monitor className={`${cls} text-sky-600`} />;
+      case 'key':
+        return <KeyRound className={`${cls} text-orange-600`} />;
+      case 'radio':
+        return <Radio className={`${cls} text-amber-700`} />;
+      case 'parking':
+        return <CircleParking className={`${cls} text-slate-600`} />;
+      case 'filter':
+        return <Filter className={`${cls} text-teal-700`} />;
+      case 'route':
+        return <Route className={`${cls} text-slate-700`} />;
+      case 'user-cog':
+        return <UserCog className={`${cls} text-fuchsia-600`} />;
+      case 'ban':
+        return <Ban className={`${cls} text-rose-700`} />;
+      case 'calendar':
+        return <CalendarOff className={`${cls} text-rose-600`} />;
+      case 'printer':
+        return <Printer className={`${cls} text-slate-600`} />;
+      case 'volume-2':
+        return <Volume2 className={`${cls} text-emerald-700`} />;
+      case 'waypoints':
+        return <Waypoints className={`${cls} text-slate-600`} />;
       default:
         return <HelpCircle className={`${cls} text-slate-400`} />;
     }
@@ -983,70 +1205,8 @@ export default function Workspace({
       let rawMaxY = Math.max(...computedYs) + 110;
       nodes.forEach(node => {
         const titleLines = wrapTextWithNewlines(node.name, 22);
-        let detailLine1 = '';
-        let detailLine2 = '';
-
-        if (!node.properties?.hidePrimaryDetails) {
-          switch (node.type) {
-            case 'ndi':
-            case 'sda':
-            case 'nds':
-              detailLine1 = node.properties?.number ? `Nº: ${node.properties.number}` : 'Nº: Non configuré';
-              break;
-            case 'user_station':
-              {
-                const showInt = !node.properties?.hideInternalNumber && node.properties?.internalNumber;
-                const showExt = !node.properties?.hideExternalNumber && node.properties?.associatedSda;
-                const parts: string[] = [];
-                if (showInt) parts.push(`Poste: ${node.properties.internalNumber}`);
-                if (showExt) parts.push(`SDA: ${node.properties.associatedSda}`);
-                detailLine1 = parts.join(' / ');
-                detailLine2 = node.properties?.userName || '';
-              }
-              break;
-            case 'switchboard':
-              detailLine1 = `Standard: ${node.properties?.internalNumber || '9'}`;
-              break;
-            case 'voicemail':
-              detailLine1 = `Bv: ${node.properties?.internalNumber || '999'}`;
-              detailLine2 = node.properties?.voicemailText || node.properties?.audioMessageName || '';
-              break;
-            case 'call_group':
-              detailLine1 = `Gr: ${node.properties?.internalNumber || '500'}`;
-              detailLine2 = node.properties?.stationName || 'Groupe Support';
-              if (node.properties?.delayBeforeForward) {
-                detailLine2 += ` (${node.properties.delayBeforeForward}s)`;
-              }
-              break;
-            case 'queue':
-              detailLine1 = `File: ${node.properties?.internalNumber || '600'}`;
-              detailLine2 = node.properties?.delayBeforeForward ? `Timeout: ${node.properties.delayBeforeForward}s` : 'File d\'attente';
-              break;
-            case 'ivr':
-              detailLine1 = `Menu IVR: ${node.properties?.internalNumber || ''}`;
-              detailLine2 = node.properties?.audioMessageName || '';
-              break;
-            case 'time_range':
-            case 'day_night':
-              detailLine1 = node.properties?.timeSchedule || 'Horaires 24h';
-              break;
-            default:
-              if (node.properties?.number) {
-                detailLine1 = `Nº: ${node.properties.number}`;
-              } else if (node.properties?.internalNumber) {
-                detailLine1 = `Ext: ${node.properties.internalNumber}`;
-              }
-              break;
-          }
-        }
-
-        if (node.properties?.description && !node.properties?.hideDescription) {
-          if (!detailLine1) {
-            detailLine1 = node.properties.description;
-          } else {
-            detailLine2 = node.properties.description;
-          }
-        }
+        const detailLine1 = !node.properties?.hidePrimaryDetails ? getNodePrimaryLine(node) : '';
+        const detailLine2 = getNodeSecondaryLine(node) || '';
 
         const d1Lines = wrapTextWithNewlines(detailLine1, 26);
         const d2Lines = wrapTextWithNewlines(detailLine2, 30);
@@ -1136,72 +1296,8 @@ export default function Workspace({
 
         // Compute text lines for layout and height
         const titleLines = wrapTextWithNewlines(node.name, 22);
-
-        // Details construction
-        let detailLine1 = '';
-        let detailLine2 = '';
-
-        if (!node.properties?.hidePrimaryDetails) {
-          switch (node.type) {
-            case 'ndi':
-            case 'sda':
-            case 'nds':
-              detailLine1 = node.properties?.number ? `Nº: ${node.properties.number}` : 'Nº: Non configuré';
-              break;
-            case 'user_station':
-              {
-                const showInt = !node.properties?.hideInternalNumber && node.properties?.internalNumber;
-                const showExt = !node.properties?.hideExternalNumber && node.properties?.associatedSda;
-                const parts: string[] = [];
-                if (showInt) parts.push(`Poste: ${node.properties.internalNumber}`);
-                if (showExt) parts.push(`SDA: ${node.properties.associatedSda}`);
-                detailLine1 = parts.join(' / ');
-                detailLine2 = node.properties?.userName || '';
-              }
-              break;
-            case 'switchboard':
-              detailLine1 = `Standard: ${node.properties?.internalNumber || '9'}`;
-              break;
-            case 'voicemail':
-              detailLine1 = `Bv: ${node.properties?.internalNumber || '999'}`;
-              detailLine2 = node.properties?.voicemailText || node.properties?.audioMessageName || '';
-              break;
-            case 'call_group':
-              detailLine1 = `Gr: ${node.properties?.internalNumber || '500'}`;
-              detailLine2 = node.properties?.stationName || 'Groupe Support';
-              if (node.properties?.delayBeforeForward) {
-                detailLine2 += ` (${node.properties.delayBeforeForward}s)`;
-              }
-              break;
-            case 'queue':
-              detailLine1 = `File: ${node.properties?.internalNumber || '600'}`;
-              detailLine2 = node.properties?.delayBeforeForward ? `Timeout: ${node.properties.delayBeforeForward}s` : 'File d\'attente';
-              break;
-            case 'ivr':
-              detailLine1 = `Menu IVR: ${node.properties?.internalNumber || ''}`;
-              detailLine2 = node.properties?.audioMessageName || '';
-              break;
-            case 'time_range':
-            case 'day_night':
-              detailLine1 = node.properties?.timeSchedule || 'Horaires 24h';
-              break;
-            default:
-              if (node.properties?.number) {
-                detailLine1 = `Nº: ${node.properties.number}`;
-              } else if (node.properties?.internalNumber) {
-                detailLine1 = `Ext: ${node.properties.internalNumber}`;
-              }
-              break;
-          }
-        }
-
-        if (node.properties?.description && !node.properties?.hideDescription) {
-          if (!detailLine1) {
-            detailLine1 = node.properties.description;
-          } else {
-            detailLine2 = node.properties.description;
-          }
-        }
+        const detailLine1 = !node.properties?.hidePrimaryDetails ? getNodePrimaryLine(node) : '';
+        const detailLine2 = getNodeSecondaryLine(node) || '';
 
         const d1Lines = wrapTextWithNewlines(detailLine1, 26);
         const d2Lines = wrapTextWithNewlines(detailLine2, 30);
@@ -1220,8 +1316,8 @@ export default function Workspace({
             <text x="${nx + 18}" y="${ny + 22}" fill="${scheme.header}" font-size="9" font-weight="900" font-family="sans-serif, Arial" letter-spacing="0.8">${meta.label.toUpperCase()}</text>
         `;
 
-        // Extension Badge
-        if (node.properties?.internalNumber && !node.properties?.hidePrimaryDetails) {
+        // Extension Badge (export SVG uniquement si détaillé)
+        if (node.properties?.internalNumber && getDisplayDensity(node) === 'detailed' && !node.properties?.hidePrimaryDetails) {
           svgContent += `
             <g transform="translate(${nx + nw - 10}, ${ny + 16})">
               <rect x="-62" y="-8" width="62" height="16" rx="4" fill="#e2e8f0" stroke="#cbd5e1" stroke-width="1" />
@@ -1333,131 +1429,159 @@ export default function Workspace({
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-transparent overflow-hidden relative" id="workspace-wrapper">
-      {/* Dynamic validation alerts banner */}
+    <div className="flex-1 flex flex-col h-full overflow-hidden relative" id="workspace-wrapper">
       {validationAlerts.length > 0 && (
-        <div className="bg-amber-500/10 backdrop-blur-md border-b border-amber-500/20 px-4 py-2 flex items-center gap-3 overflow-x-auto text-xs shrink-0 select-none">
-          <div className="flex items-center gap-1 font-bold text-amber-800">
-            <AlertTriangle size={15} />
-            <span>DIAGNOSTICS ({validationAlerts.length}) :</span>
+        <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center gap-3 overflow-x-auto text-xs shrink-0 select-none">
+          <div className="flex items-center gap-1.5 font-bold text-amber-800 shrink-0">
+            <AlertTriangle size={14} />
+            <span>Diagnostics ({validationAlerts.length})</span>
           </div>
-          <div className="flex items-center gap-4 divide-x divide-amber-500/20">
+          <div className="flex items-center gap-3 divide-x divide-amber-200">
             {validationAlerts.map((alert, idx) => (
-              <span 
-                key={idx} 
-                className="pl-4 text-amber-700 hover:text-amber-950 transition-colors cursor-pointer flex items-center gap-1"
+              <button
+                key={idx}
+                type="button"
+                className="pl-3 text-amber-800 hover:text-amber-950 transition-colors cursor-pointer text-left"
                 onClick={() => alert.nodeId && onSelectNode(alert.nodeId)}
-                title="Cliquez pour sélectionner le bloc en erreur"
+                title="Sélectionner le bloc concerné"
               >
-                ● {alert.message}
-              </span>
+                {alert.message}
+              </button>
             ))}
           </div>
         </div>
       )}
 
-      {/* Editor instructions or stats bar */}
-      <div className="bg-white/45 backdrop-blur-md border-b border-white/20 py-1.5 px-4 text-[11px] text-slate-600 flex flex-wrap gap-2 items-center justify-between shrink-0 select-none">
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <span className="bg-white/40 px-2 py-0.5 rounded border border-white/40 font-semibold text-slate-700 shadow-2xs">{nodes.length} Nœuds</span>
-          <span className="bg-white/40 px-2 py-0.5 rounded border border-white/40 font-semibold text-slate-700 shadow-2xs">{connections.length} Connexions</span>
+      <div className="tf-toolbar py-2 px-4 text-[11px] text-slate-600 flex flex-wrap gap-2 items-center justify-between shrink-0 select-none">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="tf-chip">{visibleNodes.length} nœuds{hiddenIds.size ? ` · ${hiddenIds.size} masqués` : ''}</span>
+          <span className="tf-chip">{visibleConnections.length} connexions</span>
           {nodes.length > 0 && (
             <button
               id="btn-auto-layout"
+              type="button"
               onClick={triggerRepulsionAnimation}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-2.5 py-1 rounded-lg text-[9.5px] uppercase tracking-wide transition-all shadow-sm hover:shadow active:scale-95 cursor-pointer flex items-center gap-1 shrink-0 ml-1.5"
-              title="Espacer les nœuds pour dégager le texte des connexions"
+              className="bg-brand-600 hover:bg-brand-700 text-white font-semibold px-2.5 py-1 rounded-md text-[10px] uppercase tracking-wide transition-colors cursor-pointer flex items-center gap-1 shrink-0"
+              title="Espacer les nœuds automatiquement"
             >
-              <Sparkles size={11} className="animate-pulse" />
-              <span>Espacer Automatiquement</span>
+              <AlignHorizontalDistributeCenter size={12} />
+              <span>Espacer</span>
             </button>
           )}
 
-          {/* Zoom controls inside top-bar */}
-          <div className="flex items-center gap-1 bg-white/60 rounded-lg p-0.5 border border-slate-200/60 ml-2 shadow-3xs">
+          <button
+            type="button"
+            onClick={() => setSearchOpen(true)}
+            className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold px-2.5 py-1 rounded-md text-[10px] cursor-pointer flex items-center gap-1"
+            title="Rechercher (Ctrl+F)"
+          >
+            <Search size={12} />
+            Rechercher
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setAnnotationMode((v) => !v)}
+            className={`font-semibold px-2.5 py-1 rounded-md text-[10px] cursor-pointer flex items-center gap-1 border ${
+              annotationMode
+                ? 'bg-amber-500 border-amber-500 text-white'
+                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+            }`}
+            title="Dessiner une zone / cadre (bâtiment, salle…)"
+          >
+            <Square size={12} />
+            Zone
+          </button>
+
+          <div className="flex items-center gap-0.5 bg-white rounded-md p-0.5 border border-slate-200 ml-1">
             <button
+              type="button"
               onClick={() => setZoom(prev => Math.max(0.4, prev - 0.15))}
-              className="p-1 hover:bg-slate-100 rounded text-slate-600 cursor-pointer transition-all"
-              title="Zoom arrière (Dézoomer)"
+              className="p-1 hover:bg-slate-100 rounded text-slate-600 cursor-pointer"
+              title="Zoom arrière"
             >
               <ZoomOut size={12} />
             </button>
-            <span className="font-mono text-[9.5px] font-bold px-1.5 text-slate-700 select-none min-w-[36px] text-center">
+            <span className="font-mono text-[10px] font-semibold px-1.5 text-slate-700 select-none min-w-[36px] text-center">
               {Math.round(zoom * 100)}%
             </span>
             <button
+              type="button"
               onClick={() => setZoom(prev => Math.min(2.0, prev + 0.15))}
-              className="p-1 hover:bg-slate-100 rounded text-slate-600 cursor-pointer transition-all"
-              title="Zoom avant (Zoomer)"
+              className="p-1 hover:bg-slate-100 rounded text-slate-600 cursor-pointer"
+              title="Zoom avant"
             >
               <ZoomIn size={12} />
             </button>
             <button
+              type="button"
               onClick={() => setZoom(1.0)}
-              className="px-1.5 py-0.5 hover:bg-slate-150 rounded text-slate-700 font-bold text-[8.5px] cursor-pointer transition-all border border-slate-200/50"
-              title="Réinitialiser le zoom à 100%"
+              className="px-1.5 py-0.5 hover:bg-slate-100 rounded text-slate-600 font-semibold text-[9px] cursor-pointer border border-slate-200"
+              title="Réinitialiser le zoom"
             >
-              Réinit
+              100%
             </button>
           </div>
 
-          {/* Full Screen toggle button */}
           {onToggleFullscreen && (
             <button
               id="btn-toggle-fullscreen"
+              type="button"
               onClick={onToggleFullscreen}
-              className={`flex items-center gap-1 font-bold px-2.5 py-1 rounded-lg text-[9.5px] uppercase tracking-wide transition-all shadow-3xs hover:shadow-2xs active:scale-95 cursor-pointer border ml-1.5 ${
-                isFullscreen 
-                  ? 'bg-amber-600 hover:bg-amber-700 text-white border-amber-550' 
-                  : 'bg-white/70 hover:bg-slate-50 text-slate-700 border-slate-200/60'
+              className={`flex items-center gap-1 font-semibold px-2.5 py-1 rounded-md text-[10px] uppercase tracking-wide transition-colors cursor-pointer border ${
+                isFullscreen
+                  ? 'bg-amber-600 hover:bg-amber-700 text-white border-amber-600'
+                  : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'
               }`}
-              title={isFullscreen ? "Quitter le plein écran" : "Afficher la conception en plein écran"}
+              title={isFullscreen ? 'Quitter le plein écran' : 'Plein écran'}
             >
               {isFullscreen ? <Minimize2 size={11} /> : <Maximize2 size={11} />}
-              <span>{isFullscreen ? "Quitter Plein Écran" : "Plein Écran"}</span>
+              <span>{isFullscreen ? 'Quitter' : 'Plein écran'}</span>
             </button>
           )}
 
-          {/* Tutorial button */}
           <button
             id="btn-open-tutorial-top"
+            type="button"
             onClick={() => setIsTutorialOpen(true)}
-            className="flex items-center gap-1 font-extrabold px-2.5 py-1 rounded-lg text-[9.5px] uppercase tracking-wide transition-all shadow-3xs hover:shadow-2xs active:scale-95 cursor-pointer border ml-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-200/80"
-            title="Afficher le tutoriel d'utilisation, gestes interactifs et raccourcis"
+            className="flex items-center gap-1 font-semibold px-2.5 py-1 rounded-md text-[10px] uppercase tracking-wide transition-colors cursor-pointer border bg-white hover:bg-slate-50 text-slate-700 border-slate-200"
+            title="Tutoriel et raccourcis"
           >
-            <HelpCircle size={11} className="text-indigo-600" />
+            <HelpCircle size={11} className="text-brand-600" />
             <span>Tutoriel</span>
           </button>
         </div>
 
-        <div className="flex items-center gap-3.5 flex-wrap">
+        <div className="flex items-center gap-3 flex-wrap">
           {drawingConnSourceId ? (
-            <span className="text-blue-600 font-semibold animate-pulse text-[10px]">
-              [CONSTRUCTION EN COURS] Cliquez sur un nœud de destination pour lier (Échap pour annuler)
+            <span className="text-brand-700 font-semibold text-[10px]">
+              Connexion en cours — cliquez une destination (Échap pour annuler)
             </span>
           ) : (
             <span className="text-[10px] hidden md:inline text-slate-400">
-              Glissez pour organiser, cliquez-glissez (+) pour lier.
+              Glissez pour organiser · tirez depuis (+) pour lier
             </span>
           )}
 
           {nodes.length > 0 && (
             <div className="flex items-center gap-1.5">
               <button
+                type="button"
                 onClick={() => exportAsImage('svg')}
-                className="bg-white/75 border border-slate-250 hover:bg-slate-50 text-slate-755 font-bold px-2 py-1 rounded-lg text-[9.5px] transition-all flex items-center gap-1 cursor-pointer shadow-3xs"
-                title="Exporter le schéma au format vectoriel SVG (sans perte de qualité)"
+                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold px-2 py-1 rounded-md text-[10px] transition-colors flex items-center gap-1 cursor-pointer"
+                title="Exporter en SVG"
               >
                 <Download size={11} />
-                <span>Exporter SVG</span>
+                <span>SVG</span>
               </button>
               <button
+                type="button"
                 onClick={() => exportAsImage('png')}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold px-2.5 py-1 rounded-lg text-[9.5px] transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
-                title="Exporter le schéma au format image PNG haute définition"
+                className="bg-brand-600 hover:bg-brand-700 text-white font-semibold px-2.5 py-1 rounded-md text-[10px] transition-colors flex items-center gap-1 cursor-pointer"
+                title="Exporter en PNG HD"
               >
                 <Image size={11} />
-                <span>Exporter PNG</span>
+                <span>PNG</span>
               </button>
             </div>
           )}
@@ -1471,71 +1595,146 @@ export default function Workspace({
         onMouseMove={handleWorkspaceMouseMove}
         onMouseUp={handleWorkspaceMouseUp}
         onClick={handleWorkspaceClick}
-        className="flex-1 overflow-auto relative scrollbar-thin scroll-smooth animate-fade-in"
+        className="flex-1 overflow-auto relative scrollbar-thin scroll-smooth animate-fade-in bg-[#f0f4f8]"
         id="panning-canvas-container"
         style={{ cursor: drawingConnSourceId ? 'cell' : 'default' }}
       >
         {/* Render clean empty state warning overlay if workspace has 0 nodes */}
         {nodes.length === 0 && (
           <div className="absolute inset-0 flex items-center justify-center p-6 z-30 pointer-events-none">
-            <div className="max-w-md w-full bg-white/95 backdrop-blur-md rounded-2xl p-6 border border-slate-200 shadow-xl pointer-events-auto text-center space-y-4">
-              <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mx-auto">
-                <PhoneIncoming size={24} />
+            <div className="max-w-md w-full bg-white rounded-2xl p-7 border border-slate-200 shadow-lg pointer-events-auto text-center space-y-5">
+              <div className="w-12 h-12 rounded-2xl bg-brand-50 text-brand-700 flex items-center justify-center mx-auto border border-brand-100">
+                <PhoneIncoming size={22} />
               </div>
-              <div className="space-y-1">
-                <h3 className="font-bold text-slate-900 text-lg">Espace de travail vierge</h3>
-                <p className="text-xs text-slate-500 leading-relaxed">
-                  Votre programmation est actuellement vide. Commencez à construire votre routage téléphonique ou chargez le scénario de démonstration :
+              <div className="space-y-1.5">
+                <h3 className="font-bold text-slate-900 text-xl tracking-tight">Canevas vide</h3>
+                <p className="text-sm text-slate-500 leading-relaxed">
+                  Ajoutez des blocs depuis la palette ou chargez le scénario de démonstration pour démarrer.
                 </p>
               </div>
-              
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-150 text-left space-y-2 text-xs text-slate-600">
-                <div className="flex items-center gap-1.5 font-bold text-slate-800">
-                  <span>💡 Guide de démarrage :</span>
+
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-left space-y-2.5 text-xs text-slate-600">
+                <div className="font-bold text-slate-800 text-[11px] uppercase tracking-wide">Démarrage rapide</div>
+                <div className="flex gap-2">
+                  <span className="font-bold text-brand-700 font-mono">1</span>
+                  <span>Ajoutez numéros, postes et règles depuis le panneau de gauche.</span>
                 </div>
                 <div className="flex gap-2">
-                  <span className="font-bold text-blue-600">1.</span>
-                  <span>Cliquez sur les boutons du panneau de gauche pour ajouter des blocs (Numéros, Postes, Routage).</span>
-                </div>
-                <div className="flex gap-2">
-                  <span className="font-bold text-blue-600">2.</span>
-                  <span>Reliez les blocs en glissant depuis l'icône <span className="font-bold text-blue-600 font-mono text-[13px]">(+)</span> à droite d'un bloc.</span>
+                  <span className="font-bold text-brand-700 font-mono">2</span>
+                  <span>
+                    Reliez les blocs en tirant depuis le <span className="font-bold text-brand-700">(+)</span> à droite d&apos;un nœud.
+                  </span>
                 </div>
               </div>
 
               {onLoadDemo && (
                 <button
                   id="btn-load-demo-empty"
+                  type="button"
                   onClick={onLoadDemo}
-                  className="w-full bg-[#2563eb] text-white hover:bg-blue-700 px-4 py-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/15 cursor-pointer"
+                  className="w-full bg-brand-600 text-white hover:bg-brand-700 px-4 py-3 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <Layers size={14} />
-                  <span>Activer la Démo Acme Corp</span>
+                  <span>Charger la démo Acme Corp</span>
                 </button>
               )}
 
               <button
                 id="btn-open-tutorial-empty"
+                type="button"
                 onClick={() => setIsTutorialOpen(true)}
-                className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 border border-slate-250 shadow-2xs cursor-pointer hover:border-indigo-300 hover:text-indigo-700"
+                className="w-full bg-white hover:bg-slate-50 text-slate-700 px-4 py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-2 border border-slate-200 cursor-pointer"
               >
-                <HelpCircle size={15} className="text-indigo-600" />
-                <span>Tutoriel d'utilisation &amp; Raccourcis</span>
+                <HelpCircle size={15} className="text-brand-600" />
+                <span>Tutoriel &amp; raccourcis</span>
               </button>
             </div>
           </div>
         )}
 
         <div 
-          className="w-[2400px] h-[1800px] bg-transparent relative"
+          className="tf-canvas-grid relative"
           id="grid-canvas-stage"
           style={{
-            backgroundImage: 'radial-gradient(var(--grid-dot) 1px, transparent 1px)',
-            backgroundSize: '24px 24px',
+            width: canvasSize.width,
+            height: canvasSize.height,
             transform: `scale(${zoom})`,
             transformOrigin: '0 0',
+            cursor: annotationMode ? 'crosshair' : undefined,
+          }}
+          onMouseDown={(e) => {
+            if (!annotationMode || !onUpdateAnnotations) return;
+            if ((e.target as HTMLElement).closest('[id^="node-"], [id^="outlet-"], [id^="inlet-"]')) return;
+            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+            const x = (e.clientX - rect.left) / zoom;
+            const y = (e.clientY - rect.top) / zoom;
+            setDrawingAnnot({ x, y });
+            e.stopPropagation();
+          }}
+          onMouseUp={(e) => {
+            if (!annotationMode || !drawingAnnot || !onUpdateAnnotations) return;
+            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+            const x2 = (e.clientX - rect.left) / zoom;
+            const y2 = (e.clientY - rect.top) / zoom;
+            const x = Math.min(drawingAnnot.x, x2);
+            const y = Math.min(drawingAnnot.y, y2);
+            const width = Math.max(80, Math.abs(x2 - drawingAnnot.x));
+            const height = Math.max(48, Math.abs(y2 - drawingAnnot.y));
+            const label = window.prompt('Nom de la zone (ex. Bâtiment A)', 'Zone') || 'Zone';
+            onUpdateAnnotations([
+              ...annotations,
+              {
+                id: `ann-${Date.now()}`,
+                label,
+                x,
+                y,
+                width,
+                height,
+                color: '#0d9488',
+              },
+            ]);
+            setDrawingAnnot(null);
+            setAnnotationMode(false);
+            e.stopPropagation();
           }}
         >
+          {/* Annotations / zones */}
+          {annotations.map((a) => (
+            <div
+              key={a.id}
+              className="absolute rounded-xl border-2 border-dashed pointer-events-auto group"
+              style={{
+                left: a.x,
+                top: a.y,
+                width: a.width,
+                height: a.height,
+                borderColor: a.color || '#0d9488',
+                background: `${a.color || '#0d9488'}14`,
+                zIndex: 5,
+              }}
+            >
+              <div
+                className="absolute -top-2.5 left-2 px-1.5 py-0.5 rounded text-[10px] font-bold text-white shadow-sm"
+                style={{ background: a.color || '#0d9488' }}
+              >
+                {a.label}
+              </div>
+              {onUpdateAnnotations && (
+                <button
+                  type="button"
+                  className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 bg-white/90 text-rose-600 rounded p-0.5 cursor-pointer border border-rose-200"
+                  title="Supprimer la zone"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onUpdateAnnotations(annotations.filter((x) => x.id !== a.id));
+                  }}
+                >
+                  <X size={10} />
+                </button>
+              )}
+            </div>
+          ))}
+
           {/* SVG Overlay containing all connection paths and curves */}
           <svg
             id="grid-svg"
@@ -1562,7 +1761,7 @@ export default function Workspace({
             )}
 
             {/* Draw existing connections */}
-            {connections.map(conn => {
+            {visibleConnections.map(conn => {
               const start = getNodeOutlet(conn.sourceId);
               const end = getNodeInlet(conn.targetId);
               
@@ -1639,7 +1838,7 @@ export default function Workspace({
               const h = Math.abs(selectionBoxStart.y - selectionBoxCurrent.y);
               return (
                 <div 
-                  className="absolute bg-blue-550/15 border border-blue-500 rounded pointer-events-none z-50 shadow-xs"
+                  className="absolute bg-brand-500/15 border border-brand-500 rounded pointer-events-none z-50"
                   style={{
                     left: x,
                     top: y,
@@ -1737,7 +1936,7 @@ export default function Workspace({
                       return (
                         <div 
                           key={idx} 
-                          className="flex items-center gap-1 bg-white/90 backdrop-blur-xs text-slate-900 rounded-md px-1.5 py-0.5 hover:bg-white transition-all shadow-2xs border border-slate-200"
+                          className="flex items-center gap-1 bg-white/90  text-slate-900 rounded-md px-1.5 py-0.5 hover:bg-white transition-all shadow-sm border border-slate-200"
                         >
                           {isEditingThis ? (
                             <input
@@ -1819,7 +2018,7 @@ export default function Workspace({
                 {/* Centered minimal + button to add option */}
                 <button
                   onClick={handleAddLabel}
-                  className="w-5 h-5 flex items-center justify-center bg-blue-50 hover:bg-blue-100 text-blue-600 hover:text-blue-800 rounded-full transition-all shadow-xs cursor-pointer border border-blue-100 hover:scale-110 active:scale-95"
+                  className="w-5 h-5 flex items-center justify-center bg-blue-50 hover:bg-blue-100 text-blue-600 hover:text-blue-800 rounded-full transition-all shadow-sm cursor-pointer border border-blue-100 hover:scale-110 active:scale-95"
                   title="Ajouter un autre choix/nom de touche à cette même connexion"
                   id={`add-label-btn-${conn.id}`}
                 >
@@ -1830,11 +2029,30 @@ export default function Workspace({
           })}
 
           {/* Render individual telephony blocks as absolute-positioned cards */}
-          {nodes.map(node => {
+          {nodesInView.map(node => {
             const meta = NODE_METADATA[node.type];
             if (!meta) return null;
             const isSelected = selectedNodeId === node.id || (selectedNodeIds || []).includes(node.id);
             const hasAlert = validationAlerts.some(a => a.nodeId === node.id);
+            const pos = getResolvedPos(node);
+            const isDraggingThis = !!livePositions?.[node.id];
+            const density = getDisplayDensity(node);
+            const primary = !node.properties?.hidePrimaryDetails ? getNodePrimaryLine(node) : '';
+            const secondary = getNodeSecondaryLine(node);
+            const showBadges = shouldShowBadges(node);
+            const showMeta = density === 'detailed' && !node.properties?.hideMetadata;
+            const showVoicemailExtra =
+              node.type === 'voicemail' &&
+              density === 'detailed' &&
+              !!node.properties.showVoicemailTextOnNode &&
+              !!node.properties.voicemailText;
+            const hasBodyContent = !!(primary || secondary || showBadges || showMeta || showVoicemailExtra || hasAlert);
+            const minHClass =
+              density === 'compact'
+                ? (hasBodyContent ? 'min-h-[56px]' : 'min-h-[44px]')
+                : density === 'standard'
+                ? 'min-h-[72px]'
+                : 'min-h-[96px]';
 
             return (
               <div
@@ -1845,17 +2063,24 @@ export default function Workspace({
                 onMouseEnter={(e) => handleNodeMouseEnter(e, node)}
                 onMouseMove={handleNodeMouseMove}
                 onMouseLeave={handleNodeMouseLeave}
-                className={`absolute w-[190px] min-h-[110px] h-auto flex flex-col rounded-xl glass-node border select-none transition-all pb-1 ${
+                className={`absolute w-[190px] ${minHClass} h-auto flex flex-col rounded-xl glass-node border select-none ${
+                  hasBodyContent ? 'pb-1' : 'pb-0'
+                } ${
+                  isDraggingThis ? '' : 'transition-[box-shadow,transform,min-height] duration-150'
+                } ${
                   isSelected 
-                    ? 'border-blue-500 ring-4 ring-blue-500/10 shadow-xl scale-[1.02]' 
+                    ? 'border-brand-500 ring-4 ring-brand-500/10 shadow-xl scale-[1.02]' 
                     : hasAlert
-                    ? 'border-amber-450 bg-amber-500/5 shadow-md shadow-amber-500/5'
-                    : 'border-white/40 shadow-sm'
+                    ? 'border-amber-400 bg-amber-500/5 shadow-md'
+                    : node.type === 'junction'
+                    ? 'border-slate-300 border-dashed shadow-sm bg-slate-50/80'
+                    : 'border-slate-200 shadow-sm'
                 }`}
-                style={{ left: node.x, top: node.y, zIndex: isSelected ? 30 : 20 }}
+                style={{ left: pos.x, top: pos.y, zIndex: isSelected || isDraggingThis ? 30 : 20 }}
               >
-                {/* Node Title header with colored category header bar */}
-                <div className={`px-2.5 py-1.5 rounded-t-xl bg-white/40 border-b border-white/20 flex items-center justify-between drag-handle gap-1`}>
+                <div className={`px-2.5 ${density === 'compact' ? 'py-1' : 'py-1.5'} ${
+                  hasBodyContent ? 'rounded-t-xl border-b border-white/20' : 'rounded-xl'
+                } bg-white/40 flex items-center justify-between drag-handle gap-1`}>
                   <div className="flex items-center gap-1.5 overflow-hidden">
                     <span className="shrink-0">{getIcon(meta.iconName, meta.category)}</span>
                     <span className="text-[11px] font-extrabold text-slate-800 break-words whitespace-normal leading-tight" title={node.name}>
@@ -1863,15 +2088,28 @@ export default function Workspace({
                     </span>
                   </div>
                   
-                  {/* Internal short number badge if available */}
-                  {node.properties?.internalNumber && (
-                    <span className="shrink-0 text-[8.5px] font-mono font-bold bg-slate-200/80 px-1 py-0.5 rounded text-slate-700 hover:bg-slate-300 transition-colors" title={`Numéro interne : ${node.properties.internalNumber}`}>
-                      N°{node.properties.internalNumber}
-                    </span>
-                  )}
-
-                  {/* Action buttons on node card */}
                   <div className="flex items-center gap-0.5 shrink-0">
+                    {(() => {
+                      const childCount = getDescendantIds(node.id, connections, nodes).length;
+                      if (childCount === 0 || !onToggleCollapse) return null;
+                      const isCollapsed = collapsedNodeIds.includes(node.id);
+                      return (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onToggleCollapse(node.id);
+                          }}
+                          className="text-slate-400 hover:text-brand-600 hover:bg-brand-50 p-0.5 rounded transition-all cursor-pointer flex items-center"
+                          title={isCollapsed ? `Déplier la branche (${childCount})` : `Replier la branche (${childCount})`}
+                        >
+                          {isCollapsed ? <ChevronRightIcon size={12} /> : <ChevronDown size={12} />}
+                          {isCollapsed && (
+                            <span className="text-[8px] font-bold text-brand-700 ml-0.5">+{childCount}</span>
+                          )}
+                        </button>
+                      );
+                    })()}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -1886,160 +2124,112 @@ export default function Workspace({
                   </div>
                 </div>
 
-                {/* Node body displaying current configurations directly inside the flow */}
-                <div className="flex-1 p-2 flex flex-col justify-between text-left relative overflow-hidden bg-white/20 rounded-b-xl gap-1.5">
-                  {/* Warning overlay icon if block has warning status */}
+                {hasBodyContent && (
+                <div className={`${density === 'compact' ? 'p-1.5 gap-0.5' : 'p-2 gap-1'} flex flex-col text-left relative overflow-hidden bg-white/20 rounded-b-xl`}>
                   {hasAlert && (
                     <div className="absolute right-1 bottom-1 p-0.5 bg-amber-500 text-white rounded-full shadow-sm z-10" title="Problème détecté">
                       <AlertTriangle size={10} className="animate-pulse" />
                     </div>
                   )}
 
-                  {/* Primary context text display with wrap */}
-                  {!node.properties?.hidePrimaryDetails && (
-                    <div className="text-[10px] text-slate-500 break-words whitespace-normal leading-snug">
-                      {node.type === 'sda' || node.type === 'ndi' || node.type === 'nds' ? (
-                        <span className="font-semibold text-slate-800 block">No: {node.properties.number || 'Non configuré'}</span>
-                      ) : node.type === 'user_station' ? (
-                        <span className="font-semibold text-slate-800 block">
-                          {(() => {
-                            const showInt = !node.properties?.hideInternalNumber && node.properties?.internalNumber;
-                            const showExt = !node.properties?.hideExternalNumber && node.properties?.associatedSda;
-                            const parts: string[] = [];
-                            if (showInt) parts.push(`Poste ${node.properties.internalNumber}`);
-                            if (showExt) parts.push(`SDA ${node.properties.associatedSda}`);
-                            let base = parts.join(' / ');
-                            if (node.properties?.userName) {
-                              base = base ? `${base} : ${node.properties.userName}` : node.properties.userName;
-                            }
-                            return base || 'Poste vide';
-                          })()}
+                  {(primary || secondary || showVoicemailExtra) && (
+                    <div className="text-[10px] break-words whitespace-normal leading-snug">
+                      {primary ? (
+                        <span className="font-semibold text-slate-800 block">{primary}</span>
+                      ) : null}
+                      {secondary ? (
+                        <span className="block text-slate-500 text-[9px] font-medium mt-0.5 leading-tight">
+                          {secondary}
                         </span>
-                      ) : node.type === 'switchboard' ? (
-                        <span className="font-semibold text-slate-800 block">Standard: {node.properties.internalNumber || '9'}</span>
-                      ) : node.type === 'voicemail' ? (
-                        <div className="font-semibold text-slate-800 block">
-                          <span>Bv: {node.properties.internalNumber || '999'}</span>
-                          {node.properties.showVoicemailTextOnNode && node.properties.voicemailText && (
-                            <div className="mt-1 p-1 rounded bg-rose-50 border border-rose-100 text-[8.5px] font-normal text-rose-800 break-words whitespace-pre-wrap leading-tight font-sans">
-                              "{node.properties.voicemailText}"
-                            </div>
-                          )}
-                        </div>
-                      ) : node.type === 'call_group' ? (
-                        <div className="font-semibold text-slate-800 block">
-                          <span>Gr: {node.properties.internalNumber || 'Non configuré'}</span>
-                          {node.properties.stationName && (
-                            <span className="block text-slate-600 text-[9px] font-medium mt-0.5">{node.properties.stationName}</span>
-                          )}
-                          {node.properties.delayBeforeForward && (
-                            <span className="block text-slate-500 text-[8.5px] font-normal mt-0.5">Timeout: {node.properties.delayBeforeForward}s</span>
-                          )}
-                        </div>
-                      ) : node.type === 'queue' ? (
-                        <div className="font-semibold text-slate-800 block">
-                          <span>File: {node.properties.internalNumber || 'Non configuré'}</span>
-                          {node.properties.delayBeforeForward && (
-                            <span className="block text-slate-500 text-[8.5px] font-normal mt-0.5">Timeout: {node.properties.delayBeforeForward}s</span>
-                          )}
-                        </div>
-                      ) : node.type === 'ivr' ? (
-                        <span className="text-amber-800 font-semibold block">{node.properties.audioMessageName || 'SVI par défaut'}</span>
-                      ) : node.type === 'day_night' || node.type === 'time_range' ? (
-                        <span className="text-indigo-800 font-semibold block break-words whitespace-normal leading-tight">{node.properties.timeSchedule || 'Horaires 24h'}</span>
-                      ) : node.type === 'forward_unconditional' || node.type === 'forward_no_answer' || node.type === 'forward_busy' || node.type === 'transfer' ? (
-                        <span className="text-violet-800 font-semibold block">Vers: {node.properties.forwardDestination || 'Inconnu'}</span>
-                      ) : node.type === 'mobile_external' ? (
-                        <span className="font-semibold text-slate-800 block">Mob: {node.properties.number || '06...'}</span>
-                      ) : (
-                        <span className="block text-slate-700">{node.properties.description || meta.label}</span>
-                      )}
+                      ) : null}
+                      {showVoicemailExtra && (
+                          <div className="mt-1 p-1 rounded bg-rose-50 border border-rose-100 text-[8.5px] font-normal text-rose-800 break-words whitespace-pre-wrap leading-tight">
+                            &ldquo;{node.properties.voicemailText}&rdquo;
+                          </div>
+                        )}
                     </div>
                   )}
 
-                  {/* Secondary display if description was set */}
-                  {node.properties?.description && !node.properties?.hideDescription && (
-                    <div className="text-[10px] text-slate-500 break-words whitespace-normal leading-snug">
-                      <span className="block text-[8.5px] text-slate-400 italic mt-0.5 break-words whitespace-normal leading-tight">
-                        {node.properties.description}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Row of badges/indicators for advanced features */}
-                  {(node.properties?.nodeStatus || node.properties?.forwardType || node.properties?.keyConfig || node.properties?.targetPlatform || ((node.properties?.hasPabxOption || node.properties?.phoneType === 'Mobile PBU') && !node.properties?.hidePabxBadge)) && !node.properties?.hideBadges && (
+                  {showBadges && (
                     <div className="flex flex-wrap gap-1 select-none pointer-events-none">
-                      {node.properties.nodeStatus && (
-                        <span className={`inline-flex items-center gap-0.5 text-[7px] font-black px-1 rounded-xs border leading-tight ${
-                          ['disponible', 'ouvert', 'jour'].includes(node.properties.nodeStatus)
-                            ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-800'
-                            : ['fermé', 'nuit', 'indisponible', 'hors service'].includes(node.properties.nodeStatus)
-                            ? 'bg-rose-500/10 border-rose-500/25 text-rose-800'
-                            : ['urgence', 'd\'astreinte', 'débordement actif'].includes(node.properties.nodeStatus)
-                            ? 'bg-amber-500/10 border-amber-500/25 text-amber-800'
-                            : 'bg-teal-500/10 border-teal-500/25 text-teal-850'
-                        }`}>
-                          <span className={`w-1 h-1 rounded-full shrink-0 ${
-                            ['disponible', 'ouvert', 'jour'].includes(node.properties.nodeStatus)
-                              ? 'bg-emerald-500 animate-pulse'
-                              : ['fermé', 'nuit', 'indisponible', 'hors service'].includes(node.properties.nodeStatus)
-                              ? 'bg-rose-500'
-                              : 'bg-amber-500'
-                          }`} />
-                          <span className="truncate max-w-[45px] uppercase">{node.properties.nodeStatusCustom || node.properties.nodeStatus}</span>
-                        </span>
-                      )}
-
-                      {node.properties.forwardType === 'manual' && (
-                        <span className="inline-flex items-center gap-0.5 text-[7px] font-black px-1 rounded-xs bg-amber-500/10 border border-amber-550/25 text-amber-850" title="Renvoi Manuel activé">
-                          <span>🖐️</span>
-                          <span className="uppercase text-[6px]">MAN</span>
-                        </span>
-                      )}
-
-                      {node.properties.forwardType === 'scheduled' && (
-                        <span className="inline-flex items-center gap-0.5 text-[7px] font-black px-1 rounded-xs bg-cyan-500/10 border border-cyan-500/25 text-cyan-850" title="Renvoi Programmé / Horaire">
-                          <span>📅</span>
-                          <span className="uppercase text-[6px]">AUTO</span>
-                        </span>
-                      )}
-
-                      {(node.properties.hasPabxOption || node.properties.phoneType === 'Mobile PBU') && !node.properties.hidePabxBadge && (
-                        <span className="inline-flex items-center gap-0.5 text-[7px] font-black px-1 py-0.5 rounded-xs bg-red-600 text-white shadow-2xs" title={`Option PABX Mobile (${node.properties.pabxOperator || 'SFR PBU'})`}>
-                          <span className="uppercase text-[6.5px] font-extrabold">PABX</span>
-                        </span>
-                      )}
-
-                      {node.properties.keyConfig && (
-                        <span className="inline-flex items-center gap-0.5 text-[7px] font-black px-1 rounded-xs bg-purple-500/10 border border-purple-500/25 text-purple-850" title="Touche Physique ou BLF rattachée">
-                          <span>🔑</span>
-                          <span className="uppercase text-[6px]">{node.properties.keyConfig.keyType === 'Code fonction' ? 'CODE' : (node.properties.keyConfig.keyType || 'BLF')}</span>
-                        </span>
-                      )}
-
-                      {node.properties.targetPlatform && (
-                        <span className="inline-flex items-center text-[7px] font-extrabold px-1 rounded-xs bg-slate-500/10 border border-slate-500/25 text-slate-800" title={`Plateforme : ${node.properties.targetPlatform}`}>
-                          <span className="truncate max-w-[32px]">{node.properties.targetPlatform === 'Centrex opérateur' ? 'Centrex' : node.properties.targetPlatform}</span>
-                        </span>
-                      )}
+                      {(() => {
+                        const badges: React.ReactNode[] = [];
+                        const max = maxBadgesForNode(node);
+                        if (node.properties.nodeStatus && badges.length < max) {
+                          badges.push(
+                            <span
+                              key="status"
+                              className={`inline-flex items-center gap-0.5 text-[7px] font-black px-1 rounded-xs border leading-tight ${
+                                ['disponible', 'ouvert', 'jour'].includes(node.properties.nodeStatus)
+                                  ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-800'
+                                  : ['fermé', 'nuit', 'indisponible', 'hors service'].includes(node.properties.nodeStatus)
+                                  ? 'bg-rose-500/10 border-rose-500/25 text-rose-800'
+                                  : 'bg-amber-500/10 border-amber-500/25 text-amber-800'
+                              }`}
+                            >
+                              <span className="truncate max-w-[50px] uppercase">
+                                {node.properties.nodeStatusCustom || node.properties.nodeStatus}
+                              </span>
+                            </span>
+                          );
+                        }
+                        if (node.properties.forwardType === 'manual' && badges.length < max) {
+                          badges.push(
+                            <span key="fwd-man" className="inline-flex text-[7px] font-black px-1 rounded-xs bg-amber-500/10 border border-amber-500/25 text-amber-800 uppercase">
+                              MAN
+                            </span>
+                          );
+                        }
+                        if (node.properties.forwardType === 'scheduled' && badges.length < max) {
+                          badges.push(
+                            <span key="fwd-auto" className="inline-flex text-[7px] font-black px-1 rounded-xs bg-cyan-500/10 border border-cyan-500/25 text-cyan-800 uppercase">
+                              AUTO
+                            </span>
+                          );
+                        }
+                        if (
+                          (node.properties.hasPabxOption || node.properties.phoneType === 'Mobile PBU') &&
+                          !node.properties.hidePabxBadge &&
+                          badges.length < max
+                        ) {
+                          badges.push(
+                            <span key="pabx" className="inline-flex text-[7px] font-extrabold px-1 py-0.5 rounded-xs bg-red-600 text-white">
+                              PABX
+                            </span>
+                          );
+                        }
+                        if (node.properties.keyConfig && badges.length < max) {
+                          badges.push(
+                            <span key="key" className="inline-flex text-[7px] font-black px-1 rounded-xs bg-purple-500/10 border border-purple-500/25 text-purple-800 uppercase">
+                              {node.properties.keyConfig.keyType === 'Code fonction' ? 'CODE' : (node.properties.keyConfig.keyType || 'BLF')}
+                            </span>
+                          );
+                        }
+                        if (node.properties.targetPlatform && badges.length < max) {
+                          badges.push(
+                            <span key="plat" className="inline-flex text-[7px] font-extrabold px-1 rounded-xs bg-slate-500/10 border border-slate-500/25 text-slate-800">
+                              <span className="truncate max-w-[40px]">
+                                {node.properties.targetPlatform === 'Centrex opérateur' ? 'Centrex' : node.properties.targetPlatform}
+                              </span>
+                            </span>
+                          );
+                        }
+                        return badges;
+                      })()}
                     </div>
                   )}
 
-                  {/* Secondary small indicators info */}
-                  {!node.properties?.hideMetadata && (
-                    <div className="flex items-center justify-between text-[9px] text-slate-400 mt-auto pt-1 border-t border-slate-100/50">
-                      <span className="truncate bg-white/40 border border-white/40 px-1 py-0.5 rounded text-slate-750 font-medium shadow-2xs">
+                  {showMeta && (
+                    <div className="flex items-center justify-between text-[9px] text-slate-400 pt-1 border-t border-slate-100/50">
+                      <span className="truncate bg-white/40 border border-white/40 px-1 py-0.5 rounded text-slate-700 font-medium shadow-sm">
                         {meta.label}
-                      </span>
-                      <span className="italic font-mono text-[8px] opacity-75 shrink-0">
-                        x:{node.x} y:{node.y}
                       </span>
                     </div>
                   )}
                 </div>
+                )}
 
-                {/* VISUAL PORTS */}
-                {/* 1. Receiving Inlet dot on left border (Allows completing a connection line) - perfectly centered vertically */}
+                {/* VISUAL PORTS — centrés verticalement sur la hauteur réelle (ResizeObserver) */}
                 <div
                   id={`inlet-${node.id}`}
                   onClick={(e) => drawingConnSourceId ? completeConnection(e, node.id) : null}
@@ -2052,12 +2242,11 @@ export default function Workspace({
                   title={drawingConnSourceId ? "Relâchez ou cliquez pour brancher la connexion ici" : "Port d'entrée direct d'appels"}
                 />
 
-                {/* 2. Emitting Outlet button/dot on right border (Allows drawing a connection line) - perfectly centered vertically */}
                 <button
                   id={`outlet-${node.id}`}
                   onMouseDown={(e) => startDrawingConnection(e, node.id)}
                   onMouseUp={(e) => drawingConnSourceId && drawingConnSourceId !== node.id ? completeConnection(e, node.id) : null}
-                  className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border border-slate-300 bg-white hover:bg-[#2563eb] hover:border-[#2563eb] hover:scale-125 transition-all z-35 flex items-center justify-center cursor-crosshair group-hover:scale-110"
+                  className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border border-slate-300 bg-white hover:bg-brand-600 hover:border-brand-600 hover:scale-125 transition-all z-30 flex items-center justify-center cursor-crosshair group-hover:scale-110"
                   title="Faites glisser et relâchez sur un autre nœud pour créer une liaison"
                 >
                   <div className="w-1.5 h-1.5 bg-slate-400 rounded-full hover:bg-white" />
@@ -2087,6 +2276,17 @@ export default function Workspace({
           )}
         </div>
       </div>
+
+      <CanvasNavTools
+        nodes={nodes}
+        hiddenIds={hiddenIds}
+        canvasWidth={canvasSize.width}
+        canvasHeight={canvasSize.height}
+        containerRef={containerRef}
+        onFocusNode={focusNode}
+        searchOpen={searchOpen}
+        setSearchOpen={setSearchOpen}
+      />
 
       {/* Interactive Usage Tutorial Modal */}
       <TutorialModal

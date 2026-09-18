@@ -4,19 +4,20 @@
  */
 
 import React, { useRef } from 'react';
-import { 
-  FileJson, 
-  Download, 
-  Upload, 
-  RefreshCw, 
-  Save, 
-  SlidersHorizontal, 
-  PhoneCall, 
-  UserSquare, 
+import {
+  Download,
+  Upload,
+  RefreshCw,
+  Save,
+  SlidersHorizontal,
+  PhoneCall,
+  UserSquare,
   Layers,
   Eye,
   Undo2,
-  Redo2
+  Redo2,
+  History,
+  FileText
 } from 'lucide-react';
 import { TelecomProject } from '../types';
 
@@ -35,6 +36,9 @@ interface HeaderProps {
   onRedo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  onOpenHistory?: () => void;
+  onExportPdf?: () => void;
+  onBumpVersion?: () => void;
 }
 
 export default function Header({
@@ -51,7 +55,10 @@ export default function Header({
   onUndo,
   onRedo,
   canUndo,
-  canRedo
+  canRedo,
+  onOpenHistory,
+  onExportPdf,
+  onBumpVersion,
 }: HeaderProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -65,175 +72,194 @@ export default function Header({
         const data = JSON.parse(event.target?.result as string);
         if (data && data.projectName !== undefined && Array.isArray(data.nodes)) {
           onLoadJSON(data);
-          alert('Configuration chargée avec succès !');
         } else {
-          alert('Format de fichier JSON invalide pour Télé-Flux.');
+          window.alert('Format de fichier JSON invalide pour Télé-Flux.');
         }
-      } catch (err) {
-        alert('Erreur lors de la lecture du fichier JSON.');
+      } catch {
+        window.alert('Erreur lors de la lecture du fichier JSON.');
       }
     };
     reader.readAsText(file);
-    e.target.value = ''; // Reset input
+    e.target.value = '';
   };
 
   return (
-    <header className="glass-panel-dark text-white select-none px-6 py-4 flex flex-col md:flex-row items-center gap-4 justify-between" id="app-header">
-      {/* Brand and Project metadata edit */}
-      <div className="flex items-center gap-4 w-full md:w-auto">
-        <div className="flex items-center gap-2 bg-[#2563eb] text-white p-2 px-3 rounded-lg font-black tracking-wider text-xl shadow-lg shadow-blue-500/20">
-          <PhoneCall size={24} className="animate-pulse" />
-          <span>TÉLÉ-FLUX</span>
+    <header className="tf-header select-none px-5 py-3 flex flex-col xl:flex-row items-stretch xl:items-center gap-3 justify-between shrink-0" id="app-header">
+      <div className="flex items-center gap-4 min-w-0">
+        <div className="flex items-center gap-2.5 shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-brand-600 flex items-center justify-center shadow-md shadow-brand-600/30">
+            <PhoneCall size={20} className="text-white" strokeWidth={2.25} />
+          </div>
+          <div className="leading-tight">
+            <div className="text-lg font-bold tracking-tight text-white">Télé-Flux</div>
+            <div className="text-[10px] uppercase tracking-[0.14em] text-slate-400 font-medium">Routage télécom</div>
+            <div className="text-[9px] text-slate-500 mt-0.5 font-medium normal-case tracking-normal max-w-[11rem] leading-snug">
+              Créé avec l&apos;aide de l&apos;IA pour faciliter les schémas détaillés
+            </div>
+          </div>
         </div>
-        
-        <div className="flex flex-col gap-1 w-full max-w-sm">
+
+        <div className="hidden sm:block w-px h-10 bg-white/10 shrink-0" />
+
+        <div className="flex flex-col gap-1 min-w-0 flex-1 max-w-md">
           <input
             id="input-project-name"
             type="text"
-            className="bg-slate-950/40 border border-white/5 font-semibold px-2.5 py-1 rounded text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500 w-full transition-all"
+            className="tf-input w-full"
             value={project.projectName}
             onChange={(e) => onUpdateProjectMeta({ projectName: e.target.value })}
-            placeholder="Nom du Projet"
+            placeholder="Nom du projet"
           />
-          <div className="flex items-center gap-2 text-[11px] text-slate-400">
-            <span className="flex items-center gap-1">
-              Client:
+          <div className="flex items-center gap-3 text-[11px] text-slate-400">
+            <label className="flex items-center gap-1.5 min-w-0">
+              <span className="shrink-0">Client</span>
               <input
                 id="input-client-name"
                 type="text"
-                className="bg-transparent border-b border-white/10 hover:border-white/30 focus:border-blue-500 text-slate-200 px-1 py-0.5 focus:outline-none w-20 transition-all"
+                className="bg-transparent border-b border-white/15 hover:border-white/30 focus:border-brand-500 text-slate-200 px-1 py-0.5 focus:outline-none w-24 transition-colors"
                 value={project.clientName}
                 onChange={(e) => onUpdateProjectMeta({ clientName: e.target.value })}
                 placeholder="Client"
               />
-            </span>
-            <span className="text-slate-600">|</span>
-            <span className="flex items-center gap-1">
-              Site:
+            </label>
+            <label className="flex items-center gap-1.5 min-w-0">
+              <span className="shrink-0">Site</span>
               <input
                 id="input-site-name"
                 type="text"
-                className="bg-transparent border-b border-white/10 hover:border-white/30 focus:border-blue-500 text-slate-200 px-1 py-0.5 focus:outline-none w-24 transition-all"
+                className="bg-transparent border-b border-white/15 hover:border-white/30 focus:border-brand-500 text-slate-200 px-1 py-0.5 focus:outline-none w-28 transition-colors"
                 value={project.siteName}
                 onChange={(e) => onUpdateProjectMeta({ siteName: e.target.value })}
-                placeholder="Paris"
+                placeholder="Site"
               />
-            </span>
+            </label>
+            <button
+              type="button"
+              onClick={onBumpVersion}
+              className="shrink-0 px-1.5 py-0.5 rounded bg-brand-500/20 border border-brand-400/30 text-brand-200 font-mono font-bold hover:bg-brand-500/30 cursor-pointer"
+              title="Incrémenter la version"
+            >
+              v{project.version || '1.0'}
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Navigation tabs */}
-      <div className="flex items-center bg-slate-950/40 p-1.5 rounded-xl border border-white/10 backdrop-blur-md w-full md:w-auto justify-around">
+      <nav className="flex items-center bg-black/30 p-1 rounded-xl border border-white/10 w-full xl:w-auto justify-between xl:justify-center gap-0.5" aria-label="Navigation principale">
         <button
           id="tab-editor"
+          type="button"
           onClick={() => setActiveTab('editor')}
-          className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
-            activeTab === 'editor'
-              ? 'bg-[#2563eb] text-white shadow-md shadow-blue-500/10'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
-          }`}
+          className={`tf-tab ${activeTab === 'editor' ? 'tf-tab-active' : ''}`}
         >
           <SlidersHorizontal size={15} />
-          <span>1. Conception</span>
+          <span>Conception</span>
         </button>
         <button
           id="tab-data"
+          type="button"
           onClick={() => setActiveTab('data')}
-          className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
-            activeTab === 'data'
-              ? 'bg-[#2563eb] text-white shadow-md shadow-blue-500/10'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
-          }`}
+          className={`tf-tab ${activeTab === 'data' ? 'tf-tab-active' : ''}`}
         >
           <UserSquare size={15} />
-          <span>2. Postes & Lignes</span>
+          <span>Postes &amp; Lignes</span>
         </button>
         <button
           id="tab-preview"
+          type="button"
           onClick={() => setActiveTab('preview')}
-          className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
-            activeTab === 'preview'
-              ? 'bg-[#2563eb] text-white shadow-md shadow-blue-500/10'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
-          }`}
+          className={`tf-tab ${activeTab === 'preview' ? 'tf-tab-active' : ''}`}
         >
           <Eye size={15} />
-          <span>3. Aperçus & Exports</span>
+          <span>Aperçus</span>
         </button>
-      </div>
+      </nav>
 
-      {/* Actions */}
-      <div className="flex items-center gap-2 flex-wrap w-full md:w-auto justify-end">
+      <div className="flex items-center gap-1.5 flex-wrap justify-end">
         <input
           type="file"
           ref={fileInputRef}
           onChange={handleFileChange}
-          accept=".json"
+          accept=".json,application/json"
           className="hidden"
           id="import-json-file-input"
         />
-        
+
         <button
           id="btn-import-json"
+          type="button"
           onClick={() => fileInputRef.current?.click()}
-          title="Importer un fichier JSON Télé-Flux"
-          className="bg-white/10 text-slate-200 hover:bg-white/20 hover:text-white px-3 py-2 rounded-lg text-xs flex items-center gap-1.5 transition-all cursor-pointer border border-white/10"
+          title="Importer un projet JSON"
+          className="tf-btn tf-btn-ghost px-3 py-2"
         >
           <Upload size={14} />
-          <span className="hidden lg:inline">Importer JSON</span>
+          <span className="hidden lg:inline">Importer</span>
         </button>
 
         <button
           id="btn-export-json"
+          type="button"
           onClick={onExportJSON}
           title="Exporter le projet en JSON"
-          className="bg-white/10 text-slate-200 hover:bg-white/20 hover:text-white px-3 py-2 rounded-lg text-xs flex items-center gap-1.5 transition-all cursor-pointer border border-white/10"
+          className="tf-btn tf-btn-ghost px-3 py-2"
         >
           <Download size={14} />
-          <span className="hidden lg:inline">Exporter JSON</span>
+          <span className="hidden lg:inline">Exporter</span>
         </button>
 
-        {/* Undo Button */}
+        {onExportPdf && (
+          <button
+            type="button"
+            onClick={onExportPdf}
+            title="Rapport PDF 1 page (résumé + schéma + postes)"
+            className="tf-btn tf-btn-ghost px-3 py-2"
+          >
+            <FileText size={14} />
+            <span className="hidden lg:inline">PDF</span>
+          </button>
+        )}
+
+        {onOpenHistory && (
+          <button
+            type="button"
+            onClick={onOpenHistory}
+            title="Instantanés (points de version manuels)"
+            className="tf-btn tf-btn-ghost px-3 py-2"
+          >
+            <History size={14} />
+            <span className="hidden lg:inline">Instantanés</span>
+          </button>
+        )}
+
         <button
           id="btn-undo"
+          type="button"
           onClick={onUndo}
           disabled={!canUndo}
-          title="Annuler la dernière action (Ctrl+Z)"
-          className={`px-3 py-2 rounded-lg text-xs flex items-center gap-1.5 transition-all border ${
-            canUndo
-              ? 'bg-white/10 text-slate-200 border-white/10 hover:bg-white/20 hover:text-white cursor-pointer shadow-sm'
-              : 'bg-white/5 text-slate-500 border-transparent opacity-40 cursor-not-allowed'
-          }`}
+          title="Annuler (Ctrl+Z)"
+          className="tf-btn tf-btn-ghost px-3 py-2"
         >
           <Undo2 size={14} />
-          <span className="hidden sm:inline">Annuler</span>
         </button>
 
-        {/* Redo Button */}
         <button
           id="btn-redo"
+          type="button"
           onClick={onRedo}
           disabled={!canRedo}
-          title="Rétablir l'action annulée (Ctrl+Y)"
-          className={`px-3 py-2 rounded-lg text-xs flex items-center gap-1.5 transition-all border ${
-            canRedo
-              ? 'bg-white/10 text-slate-200 border-white/10 hover:bg-white/20 hover:text-white cursor-pointer shadow-sm'
-              : 'bg-white/5 text-slate-500 border-transparent opacity-40 cursor-not-allowed'
-          }`}
+          title="Rétablir (Ctrl+Y)"
+          className="tf-btn tf-btn-ghost px-3 py-2"
         >
           <Redo2 size={14} />
-          <span className="hidden sm:inline">Rétablir</span>
         </button>
 
         <button
           id="btn-save-local"
+          type="button"
           onClick={onSaveLocal}
-          title="Sauvegarder dans le stockage du navigateur"
-          className={`px-3 py-2 rounded-lg text-xs flex items-center gap-1.5 transition-all cursor-pointer border ${
-            hasUnsavedChanges 
-              ? 'bg-[#2563eb] text-white hover:bg-blue-700 border-blue-500 shadow-md shadow-blue-500/20' 
-              : 'bg-white/10 text-slate-400 border-white/5 hover:bg-white/10 hover:text-slate-200'
+          title="Sauvegarder dans le navigateur"
+          className={`tf-btn px-3 py-2 ${
+            hasUnsavedChanges ? 'tf-btn-primary' : 'tf-btn-ghost'
           }`}
         >
           <Save size={14} />
@@ -242,22 +268,24 @@ export default function Header({
 
         <button
           id="btn-load-demo"
+          type="button"
           onClick={onLoadDemo}
-          title="Charger le scénario complet de démonstration"
-          className="bg-emerald-600/30 border border-emerald-500/30 text-emerald-200 hover:bg-emerald-650/40 hover:text-white px-3 py-2 rounded-lg text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+          title="Charger le scénario de démonstration"
+          className="tf-btn px-3 py-2 bg-emerald-500/15 border border-emerald-400/30 text-emerald-200 hover:bg-emerald-500/25"
         >
-          <Layers size={14} className="text-emerald-400" />
-          <span>Charger la Démo</span>
+          <Layers size={14} />
+          <span className="hidden sm:inline">Démo</span>
         </button>
 
         <button
           id="btn-reset"
+          type="button"
           onClick={onReset}
-          title="Réinitialiser et effacer tout le projet (Configuration Vierge)"
-          className="bg-rose-900/20 border border-rose-900/30 text-rose-200 hover:bg-rose-900/40 hover:text-white px-3 py-2 rounded-lg text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+          title="Réinitialiser le projet"
+          className="tf-btn tf-btn-danger px-3 py-2"
         >
           <RefreshCw size={14} />
-          <span>Réinitialiser (Vierge)</span>
+          <span className="hidden sm:inline">Réinit.</span>
         </button>
       </div>
     </header>

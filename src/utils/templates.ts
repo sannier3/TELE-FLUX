@@ -68,9 +68,9 @@ export const DEFAULT_TEMPLATES: ReusableTemplate[] = [
     description: "Groupe d'appel par scrutation simultanée avec débordement",
     type: 'call_group',
     properties: {
-      delayBeforeForward: 20,
+      delayBeforeForward: 0,
       internalNumber: '500',
-      techComment: 'Groupe de 3 utilisateurs en simultané. Timeout 20 sec.',
+      techComment: 'Groupe de 3 utilisateurs en simultané.',
       clientComment: 'Fait sonner plusieurs postes en même temps.'
     }
   },
@@ -150,7 +150,24 @@ export const NODE_METADATA: Record<NodeType, {
     borderColor: 'border-slate-500',
     bgSelected: 'bg-slate-50',
     iconName: 'phone-outgoing',
-    defaultProps: { number: 'Masqué ou SDA', description: 'Présentations de numéro sortant' }
+    defaultProps: { number: 'Masqué ou SDA', description: 'Présentation de numéro sortant (CLIP)' }
+  },
+  sip_trunk: {
+    label: 'Trunk SIP',
+    category: 'numbers',
+    color: 'emerald',
+    borderColor: 'border-emerald-800',
+    bgSelected: 'bg-emerald-50',
+    iconName: 'cable',
+    defaultProps: {
+      trunkProvider: 'Opérateur / Trunk',
+      trunkChannels: 30,
+      codecPreference: 'G.711 / G.729',
+      didRange: '',
+      number: '',
+      description: 'Trunk SIP entrant/sortant (opérateur / IPBX)',
+      additionalOptions: ['Failover trunk secondaire', 'CLI préservée'],
+    },
   },
   user_station: {
     label: 'Poste Utilisateur',
@@ -174,10 +191,53 @@ export const NODE_METADATA: Record<NodeType, {
     label: 'Extension / Module',
     category: 'terminals',
     color: 'indigo',
-    borderColor: 'border-indigo-500',
-    bgSelected: 'bg-indigo-50',
+    borderColor: 'border-brand-500',
+    bgSelected: 'bg-brand-50',
     iconName: 'layers',
     defaultProps: { extensionType: 'Module d\'extension boutons Yealink EXP40', description: 'Clavier d\'extension touche de supervision' }
+  },
+  softphone: {
+    label: 'Softphone / client mobile',
+    category: 'terminals',
+    color: 'sky',
+    borderColor: 'border-sky-600',
+    bgSelected: 'bg-sky-50',
+    iconName: 'monitor',
+    defaultProps: {
+      internalNumber: '',
+      userName: '',
+      mobileAppEnabled: true,
+      webrtcEnabled: true,
+      phoneType: 'Softphone',
+      displayDensity: 'standard',
+      hideDescription: true,
+      hideBadges: true,
+      additionalOptions: ['Softphone associé', 'Enregistrement d\'appel'],
+      description: 'Client logiciel ou application mobile rattachée au PABX',
+    },
+  },
+  mobile_pbu: {
+    label: 'Mobile unifié / FMC',
+    category: 'terminals',
+    color: 'cyan',
+    borderColor: 'border-cyan-700',
+    bgSelected: 'bg-cyan-50',
+    iconName: 'smartphone',
+    defaultProps: {
+      hasPabxOption: true,
+      pabxOperator: '',
+      pabxOptionDetails: 'Convergence fixe-mobile / one number',
+      pabxMobileNumber: '',
+      simultaneousRing: true,
+      internalNumber: '',
+      userName: '',
+      phoneType: 'Mobile PBU',
+      displayDensity: 'standard',
+      hideDescription: true,
+      hideBadges: true,
+      additionalOptions: ['Supervision BLF', 'Renvoi sur occupation'],
+      description: 'Mobile intégré au PABX (convergence fixe-mobile)',
+    },
   },
   ivr: {
     label: 'SVI / Serveur Vocal',
@@ -186,7 +246,14 @@ export const NODE_METADATA: Record<NodeType, {
     borderColor: 'border-amber-500',
     bgSelected: 'bg-amber-50',
     iconName: 'layers',
-    defaultProps: { audioMessageName: 'accueil_svi.wav', description: 'Serveur Vocal Interactif (Appuyez sur 1, 2, ...)' }
+    defaultProps: {
+      audioMessageName: 'accueil_svi.wav',
+      digitTimeout: 5,
+      maxInvalidDigits: 3,
+      ivrMenuMap: '1 = …\n2 = …\n0 = Standard',
+      additionalOptions: ['Détection DTMF', 'Répétition menu si erreur'],
+      description: 'Serveur Vocal Interactif (Appuyez sur 1, 2, ...)',
+    },
   },
   call_group: {
     label: "Groupe d'appel",
@@ -195,7 +262,18 @@ export const NODE_METADATA: Record<NodeType, {
     borderColor: 'border-yellow-600',
     bgSelected: 'bg-yellow-50',
     iconName: 'users',
-    defaultProps: { stationName: 'Groupe Support', delayBeforeForward: 15, internalNumber: '500', description: 'Sonne en cascade ou en simultané' }
+    defaultProps: {
+      stationName: 'Groupe Support',
+      delayBeforeForward: 0,
+      agentRingTimeout: 0,
+      internalNumber: '500',
+      groupType: 'simultaneous',
+      skipBusyAgents: true,
+      queueMembers: '',
+      overflowAction: 'Messagerie vocale',
+      additionalOptions: ["Musique d'attente", 'Ignorer agents occupés'],
+      description: 'Groupe d\'appel — distribution configurable',
+    },
   },
   queue: {
     label: "File d'attente",
@@ -204,7 +282,109 @@ export const NODE_METADATA: Record<NodeType, {
     borderColor: 'border-orange-500',
     bgSelected: 'bg-orange-50',
     iconName: 'clock',
-    defaultProps: { delayBeforeForward: 60, internalNumber: '600', description: 'File d\'attente musicale (ACD) avec agents connectés' }
+    defaultProps: {
+      delayBeforeForward: 0,
+      agentRingTimeout: 0,
+      internalNumber: '600',
+      groupType: 'cyclic',
+      maxCallersInQueue: undefined,
+      musicOnHold: '',
+      announcePosition: true,
+      announceHoldTime: false,
+      periodicAnnounceInterval: 0,
+      wrapUpTime: 0,
+      skipBusyAgents: true,
+      joinWhenEmpty: true,
+      leaveWhenEmpty: false,
+      callbackEnabled: false,
+      overflowAction: 'Messagerie vocale',
+      queueMembers: '',
+      additionalOptions: ["Musique d'attente", 'Annonce de position', 'Ignorer agents occupés'],
+      description: 'File ACD — modes de distribution comme un groupement',
+    },
+  },
+  conference: {
+    label: 'Salle de conférence',
+    category: 'routing',
+    color: 'violet',
+    borderColor: 'border-violet-600',
+    bgSelected: 'bg-violet-50',
+    iconName: 'users',
+    defaultProps: {
+      internalNumber: '700',
+      pinCode: '',
+      maxParticipants: 10,
+      additionalOptions: ['Enregistrement d\'appel', 'Musique d\'attente'],
+      description: 'Conférence audio Meet-Me',
+    },
+  },
+  parking: {
+    label: "Parc d'appels",
+    category: 'routing',
+    color: 'slate',
+    borderColor: 'border-slate-600',
+    bgSelected: 'bg-slate-50',
+    iconName: 'parking',
+    defaultProps: {
+      parkingSlots: '701-710',
+      parkingTimeout: 60,
+      overflowAction: 'Raccrocher',
+      description: 'Call Park — mise en attente récupérable (*slot)',
+    },
+  },
+  paging: {
+    label: 'Paging / Intercom',
+    category: 'routing',
+    color: 'amber',
+    borderColor: 'border-amber-700',
+    bgSelected: 'bg-amber-50',
+    iconName: 'radio',
+    defaultProps: {
+      pageZone: 'Zone générale',
+      queueMembers: '',
+      priorityLevel: 'Normale',
+      description: 'Annonce sonore / intercom sur postes ou zones',
+    },
+  },
+  disa: {
+    label: 'DISA / Accès distant',
+    category: 'routing',
+    color: 'orange',
+    borderColor: 'border-orange-600',
+    bgSelected: 'bg-orange-50',
+    iconName: 'key',
+    defaultProps: {
+      pinCode: '',
+      digitTimeout: 5,
+      audioMessageName: 'disa_prompt.wav',
+      description: 'Accès distant avec code PIN (appel sortant via le PABX)',
+    },
+  },
+  cid_route: {
+    label: 'Routage par appelant',
+    category: 'routing',
+    color: 'teal',
+    borderColor: 'border-teal-700',
+    bgSelected: 'bg-teal-50',
+    iconName: 'filter',
+    defaultProps: {
+      cidPatterns: '',
+      description: 'Condition sur n° appelant (CID) — VIP, blacklist partielle…',
+    },
+  },
+  outbound_route: {
+    label: 'Règle sortante',
+    category: 'routing',
+    color: 'slate',
+    borderColor: 'border-slate-700',
+    bgSelected: 'bg-slate-50',
+    iconName: 'route',
+    defaultProps: {
+      number: '0XXXX / 06 / 07 / international',
+      trunkProvider: '',
+      outgoingCallerId: '',
+      description: 'Route sortante : préfixe, trunk, présentation CLI',
+    },
   },
   transfer: {
     label: "Transfert d'appel",
@@ -242,6 +422,46 @@ export const NODE_METADATA: Record<NodeType, {
     iconName: 'phone-off',
     defaultProps: { forwardDestination: '120', description: 'Renvoi automatique si la ligne est occupée' }
   },
+  boss_secretary: {
+    label: 'Boss / Secrétaire',
+    category: 'forwards',
+    color: 'fuchsia',
+    borderColor: 'border-fuchsia-600',
+    bgSelected: 'bg-fuchsia-50',
+    iconName: 'user-cog',
+    defaultProps: {
+      bossExtension: '',
+      secretaryExtension: '',
+      additionalOptions: ['Supervision BLF'],
+      description: 'Filtrage secrétaire — appels boss filtrés / annoncés',
+    },
+  },
+  feature_code: {
+    label: 'Code fonction',
+    category: 'forwards',
+    color: 'violet',
+    borderColor: 'border-violet-700',
+    bgSelected: 'bg-violet-50',
+    iconName: 'hash',
+    defaultProps: {
+      featureCode: '*72',
+      configMethod: 'code fonction',
+      description: 'Code * / # PABX (renvoi, pickup, login agent…)',
+    },
+  },
+  blacklist: {
+    label: 'Liste noire / blanche',
+    category: 'forwards',
+    color: 'rose',
+    borderColor: 'border-rose-700',
+    bgSelected: 'bg-rose-50',
+    iconName: 'ban',
+    defaultProps: {
+      listMode: 'blacklist',
+      cidPatterns: '',
+      description: 'Filtrage entrant par liste noire ou blanche',
+    },
+  },
   voicemail: {
     label: 'Messagerie Vocale',
     category: 'media',
@@ -249,7 +469,13 @@ export const NODE_METADATA: Record<NodeType, {
     borderColor: 'border-rose-500',
     bgSelected: 'bg-rose-50',
     iconName: 'voicemail',
-    defaultProps: { audioMessageName: 'messagerie_abs.wav', internalNumber: '999', description: 'Boîte de messagerie pour enregistrer un message' }
+    defaultProps: {
+      audioMessageName: 'messagerie_abs.wav',
+      internalNumber: '999',
+      voicemailToEmail: true,
+      voicemailEmail: '',
+      description: 'Boîte de messagerie — option e-mail',
+    },
   },
   custom_audio: {
     label: 'Message Vocal Perso',
@@ -273,10 +499,23 @@ export const NODE_METADATA: Record<NodeType, {
     label: 'Règle Jour/Nuit',
     category: 'media',
     color: 'indigo',
-    borderColor: 'border-indigo-600',
-    bgSelected: 'bg-indigo-50',
+    borderColor: 'border-brand-600',
+    bgSelected: 'bg-brand-50',
     iconName: 'sun',
     defaultProps: { timeSchedule: '08:00-12:00, 14:00-18:30', description: 'Bascule automatique jour/nuit et weekend' }
+  },
+  holiday: {
+    label: 'Jours fériés / fermeture',
+    category: 'media',
+    color: 'rose',
+    borderColor: 'border-rose-600',
+    bgSelected: 'bg-rose-50',
+    iconName: 'calendar',
+    defaultProps: {
+      timeSchedule: 'Jours fériés FR + congés',
+      audioMessageName: 'fermeture_exceptionnelle.wav',
+      description: 'Calendrier de fermeture exceptionnelle / jours fériés',
+    },
   },
   external_destination: {
     label: 'Destination Externe',
@@ -314,6 +553,20 @@ export const NODE_METADATA: Record<NodeType, {
     iconName: 'volume-2',
     defaultProps: { audioMessageName: 'pre-decroche_bienvenue.wav', description: 'Pré-décroché ou musique d\'accueil client' }
   },
+  fax: {
+    label: 'Fax / Fax2Email',
+    category: 'media',
+    color: 'slate',
+    borderColor: 'border-slate-500',
+    bgSelected: 'bg-slate-50',
+    iconName: 'printer',
+    defaultProps: {
+      number: '',
+      faxEmail: '',
+      internalNumber: '',
+      description: 'Fax analogique / T.38 ou Fax to Email',
+    },
+  },
   emergency_overflow: {
     label: 'Scénario Urgence/Débord',
     category: 'routing',
@@ -328,10 +581,28 @@ export const NODE_METADATA: Record<NodeType, {
     category: 'routing',
     color: 'stone',
     borderColor: 'border-stone-500',
-    bgSelected: 'bg-stone-50',
+    bgSelected: 'bg-slate-50',
     iconName: 'phone-off',
-    defaultProps: { description: 'Raccroché automatique de l’appel / Libération du canal de communication' }
-  }
+    defaultProps: {
+      hangupCause: 'Normal Clearing',
+      description: 'Raccroché automatique / libération du canal',
+    },
+  },
+  junction: {
+    label: 'Nœud de liaison',
+    category: 'routing',
+    color: 'slate',
+    borderColor: 'border-slate-400',
+    bgSelected: 'bg-slate-50',
+    iconName: 'waypoints',
+    defaultProps: {
+      displayDensity: 'compact',
+      hideDescription: true,
+      hideBadges: true,
+      hideMetadata: true,
+      description: 'Point de jonction — regroupe ou redistribue plusieurs liaisons',
+    },
+  },
 };
 
 export const DEMO_PROJECT: TelecomProject = {
@@ -341,6 +612,11 @@ export const DEMO_PROJECT: TelecomProject = {
   author: 'Expert Télécom',
   createdAt: '2026-06-18',
   updatedAt: '2026-07-30',
+  version: '1.0',
+  annotations: [],
+  collapsedNodeIds: [],
+  changeLog: [],
+  snapshots: [],
   lines: [
     {
       id: 'l-1',
@@ -804,12 +1080,17 @@ export const BLANK_PROJECT: TelecomProject = {
   author: '',
   createdAt: '',
   updatedAt: '',
+  version: '1.0',
   lines: [],
   users: [],
   templates: [],
   nodes: [],
-  connections: []
+  connections: [],
+  annotations: [],
+  collapsedNodeIds: [],
+  changeLog: [],
+  snapshots: [],
 };
 
-export const INITIAL_DEFAULT_PROJECT: TelecomProject = DEMO_PROJECT;
+export const INITIAL_DEFAULT_PROJECT: TelecomProject = BLANK_PROJECT;
 

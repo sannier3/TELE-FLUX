@@ -1,5 +1,5 @@
 [Unit]
-Description=Concepteur et Visualiseur de Routage Télécom (Vite/React)
+Description=Télé-Flux — serveur de prévisualisation (Vite/React)
 After=network.target
 
 [Service]

@@ -9,7 +9,6 @@ import {
   Save, 
   Layers, 
   BookmarkCheck, 
-  Sparkles,
   Info,
   Phone,
   Clock,
@@ -18,7 +17,9 @@ import {
   PhoneForwarded,
   ShieldAlert,
   Plus,
-  Settings
+  Settings,
+  Copy,
+  RefreshCw
 } from 'lucide-react';
 import { CallNode, ReusableTemplate, NodeType } from '../types';
 import { NODE_METADATA } from '../utils/templates';
@@ -37,6 +38,18 @@ import {
   EXPANSION_MODULES, 
   EXP_MODELS 
 } from '../data/phoneModels';
+import {
+  DISTRIBUTION_MODES,
+  GROUP_FEATURE_OPTIONS,
+  QUEUE_FEATURE_OPTIONS,
+  IVR_FEATURE_OPTIONS,
+  STATION_FEATURE_OPTIONS,
+  OVERFLOW_ACTIONS,
+  normalizeDistributionMode,
+  PBU_FEATURE_OPTIONS,
+  TRUNK_FEATURE_OPTIONS,
+} from '../data/telephonyOptions';
+import { densityToFlags, getDisplayDensity, DisplayDensity } from '../utils/nodeDisplay';
 
 interface PropertyPanelProps {
   selectedNodeId: string | null;
@@ -45,6 +58,8 @@ interface PropertyPanelProps {
   onUpdateNodeName: (id: string, name: string) => void;
   onDeleteNode: (id: string) => void;
   onCreateTemplateFromNode: (node: CallNode, templateName: string, templateDesc: string) => void;
+  onCloneNode: (id: string) => void;
+  onChangeNodeType: (id: string, newType: NodeType) => void;
 }
 
 const formatTimeSchedulesToString = (schedules: { days: string[]; start: string; end: string }[]): string => {
@@ -83,7 +98,9 @@ export default function PropertyPanel({
   onUpdateNodeProperties,
   onUpdateNodeName,
   onDeleteNode,
-  onCreateTemplateFromNode
+  onCreateTemplateFromNode,
+  onCloneNode,
+  onChangeNodeType
 }: PropertyPanelProps) {
   const node = nodes.find(n => n.id === selectedNodeId);
 
@@ -111,19 +128,17 @@ export default function PropertyPanel({
 
   if (!node) {
     return (
-      <div className="w-80 bg-white/30 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center select-none" id="property-panel-empty">
-        <div className="p-4 bg-white/60 backdrop-blur-xs rounded-full border border-white/40 text-slate-400 shadow-sm mb-3">
-          <Layers size={36} />
+      <div className="w-80 tf-panel-right flex flex-col items-center justify-center p-6 text-center select-none" id="property-panel-empty">
+        <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-slate-400 shadow-sm mb-3">
+          <Layers size={32} />
         </div>
-        <h4 className="text-sm font-bold text-slate-700">Aucun élément sélectionné</h4>
-        <p className="text-xs text-slate-500 mt-2 max-w-xs leading-relaxed">
-          Sélectionnez un bloc ou une ligne sur l'espace de travail central pour configurer ses paramètres techniques et commentaires clients interactifs.
+        <h4 className="text-sm font-bold text-slate-800">Aucun élément sélectionné</h4>
+        <p className="text-xs text-slate-500 mt-2 max-w-[14rem] leading-relaxed">
+          Sélectionnez un bloc sur le canevas pour éditer ses paramètres.
         </p>
       </div>
     );
   }
-
-  const meta = NODE_METADATA[node.type];
 
   // Callback to push local state updates to global state
   const handlePropertyChange = (key: keyof CallNode['properties'], val: any) => {
@@ -172,33 +187,112 @@ export default function PropertyPanel({
   };
 
   return (
-    <div className="w-80 bg-white/45 backdrop-blur-md flex flex-col h-full overflow-hidden" id="property-panel-active">
-      {/* Title block */}
-      <div className="p-4 border-b border-white/20 bg-white/30 shrink-0 select-none">
-        <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 bg-slate-150 text-slate-600 rounded">
-          {meta?.label || node.type}
-        </span>
-        <h3 className="text-sm font-bold text-slate-800 mt-2">Paramètres du Bloc</h3>
-      </div>
+    <div className="w-80 tf-panel-right flex flex-col h-full overflow-hidden" id="property-panel-active">
+      <div className="p-4 border-b border-slate-200 bg-slate-50/80 shrink-0 select-none space-y-3">
+        <div>
+          <h3 className="text-sm font-bold text-slate-900">Paramètres du bloc</h3>
+          <p className="text-[10px] text-slate-500 mt-0.5">Identité, type et contenu affiché sur le schéma</p>
+        </div>
 
-      {/* Inputs list scrollable */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin text-xs">
-        {/* Name Input */}
+        <div className="space-y-1">
+          <label className="text-[10px] font-bold text-slate-500 uppercase">Type de nœud</label>
+          <div className="flex items-center gap-1.5">
+            <select
+              id="prop-change-node-type"
+              value={node.type}
+              onChange={(e) => {
+                const next = e.target.value as NodeType;
+                if (next === node.type) return;
+                const ok = window.confirm(
+                  `Changer le type vers « ${NODE_METADATA[next]?.label || next} » ?\nLes champs incompatibles seront remplacés par les valeurs par défaut du nouveau type.`
+                );
+                if (ok) onChangeNodeType(node.id, next);
+              }}
+              className="flex-1 border border-slate-200 rounded-lg px-2 py-1.5 bg-white text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
+            >
+              {(Object.keys(NODE_METADATA) as NodeType[]).map((t) => (
+                <option key={t} value={t}>{NODE_METADATA[t].label}</option>
+              ))}
+            </select>
+            <RefreshCw size={14} className="text-slate-400 shrink-0" title="Changer le type" />
+          </div>
+        </div>
+
         <div className="space-y-1.5">
-          <label className="block text-[11px] font-bold text-slate-700 uppercase">Libellé du Bloc</label>
+          <label className="block text-[11px] font-bold text-slate-700 uppercase">Libellé du bloc</label>
           <input
             id="prop-node-name"
             type="text"
             value={localName}
             onChange={(e) => handleNameChange(e.target.value)}
-            className="w-full border border-white/40 bg-white/50 rounded-lg px-2.5 py-1.5 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-none font-semibold text-slate-850 transition-all"
+            className="tf-input-light font-semibold"
           />
+        </div>
+
+        <div className="flex gap-1.5">
+          <button
+            type="button"
+            onClick={() => onCloneNode(node.id)}
+            className="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-[10px] font-bold text-slate-700 cursor-pointer"
+          >
+            <Copy size={12} />
+            Cloner
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsSavingTemplate(true)}
+            className="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 rounded-lg border border-brand-200 bg-brand-50 hover:bg-brand-100 text-[10px] font-bold text-brand-800 cursor-pointer"
+          >
+            <BookmarkCheck size={12} />
+            Modèle
+          </button>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs">
+        {/* Affichage canevas — en premier pour guider l'utilisateur */}
+        <div className="space-y-2.5 p-3 bg-slate-50 border border-slate-200 rounded-lg">
+          <h4 className="font-bold text-slate-800 text-[11px] uppercase tracking-wide flex items-center gap-1">
+            <Settings size={12} className="text-brand-600" />
+            Affichage sur le schéma
+          </h4>
+          <p className="text-[10px] text-slate-500 leading-snug">
+            Choisissez combien d&apos;infos apparaissent sur la carte — évite de surcharger le canevas.
+          </p>
+          <div className="grid grid-cols-3 gap-1">
+            {([
+              { id: 'compact' as DisplayDensity, label: 'Compact', hint: 'Titre + n°' },
+              { id: 'standard' as DisplayDensity, label: 'Standard', hint: 'Essentiel' },
+              { id: 'detailed' as DisplayDensity, label: 'Détaillé', hint: 'Tout' },
+            ]).map((opt) => {
+              const active = getDisplayDensity(node) === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => {
+                    const flags = densityToFlags(opt.id);
+                    setLocalProps(prev => ({ ...prev, ...flags }));
+                    onUpdateNodeProperties(node.id, flags);
+                  }}
+                  className={`px-1.5 py-2 rounded-lg border text-center cursor-pointer transition-colors ${
+                    active
+                      ? 'bg-brand-600 border-brand-600 text-white'
+                      : 'bg-white border-slate-200 text-slate-600 hover:border-brand-300'
+                  }`}
+                >
+                  <div className="text-[10px] font-bold">{opt.label}</div>
+                  <div className={`text-[8px] mt-0.5 ${active ? 'text-brand-100' : 'text-slate-400'}`}>{opt.hint}</div>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Dynamic fields based on Node Type */}
 
         {/* 1. Direct number or external number */}
-        {(node.type === 'sda' || node.type === 'ndi' || node.type === 'nds' || node.type === 'incoming_num' || node.type === 'mobile_external' || node.type === 'external_destination' || node.type === 'direct_line') && (
+        {(node.type === 'sda' || node.type === 'ndi' || node.type === 'nds' || node.type === 'incoming_num' || node.type === 'mobile_external' || node.type === 'external_destination' || node.type === 'direct_line' || node.type === 'sip_trunk' || node.type === 'fax' || node.type === 'outbound_route' || node.type === 'mobile_pbu') && (
           <div className="space-y-1.5 p-3 bg-white/30 rounded-lg border border-white/40">
             <label className="block text-[11px] font-bold text-slate-700 uppercase">Numéro Téléphonique</label>
             <input
@@ -222,7 +316,7 @@ export default function PropertyPanel({
           
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
-              <label className="text-[10px] text-slate-505 font-bold block uppercase">Plateforme Cible</label>
+              <label className="text-[10px] text-slate-500 font-bold block uppercase">Plateforme Cible</label>
               <select
                 id="prop-node-platform"
                 value={localProps.targetPlatform || ''}
@@ -263,14 +357,14 @@ export default function PropertyPanel({
         </div>
 
         {/* 3. Advanced Post / Terminal Equipment Details */}
-        {(node.type === 'user_station' || node.type === 'direct_line' || node.type === 'switchboard') && (
+        {(node.type === 'user_station' || node.type === 'direct_line' || node.type === 'switchboard' || node.type === 'softphone' || node.type === 'mobile_pbu') && (
           <div className="space-y-3.5 p-3 bg-blue-50/40 rounded-lg border border-blue-100 font-medium">
             <h4 className="font-extrabold text-blue-900 text-xs border-b border-blue-100 pb-1 flex items-center justify-between">
               <span>Équipements & Matériel Poste</span>
               <span className="text-[8px] bg-blue-600 text-white font-black px-1 rounded">PRO</span>
             </h4>
             
-            {node.type === 'user_station' && (
+            {(node.type === 'user_station' || node.type === 'softphone' || node.type === 'mobile_pbu' || node.type === 'direct_line' || node.type === 'switchboard') && (
               <div className="space-y-1">
                 <label className="text-[10px] text-slate-500 block uppercase font-bold">Collaborateur / Usager</label>
                 <input
@@ -312,7 +406,7 @@ export default function PropertyPanel({
 
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
-                <label className="text-[10px] text-slate-505 block font-bold uppercase font-sans">N° Présenté (Sortant)</label>
+                <label className="text-[10px] text-slate-500 block font-bold uppercase font-sans">N° Présenté (Sortant)</label>
                 <input
                   id="prop-node-outgoing-cid"
                   type="text"
@@ -437,8 +531,8 @@ export default function PropertyPanel({
 
             {/* DECT Base and Handset Fields - Conditional */}
             {(localProps.phoneType === 'DECT' || (localProps.phoneBrand === 'Gigaset' && localProps.phoneBrand !== 'Mitel')) && (
-              <div className="space-y-2 p-2 bg-indigo-50/60 rounded-md border border-indigo-100 animate-fade-in text-[11px]">
-                <h5 className="font-extrabold text-indigo-900 uppercase text-[9px] tracking-wider">Connexion DECT Sans-Fil</h5>
+              <div className="space-y-2 p-2 bg-brand-50/60 rounded-md border border-brand-100 animate-fade-in text-[11px]">
+                <h5 className="font-extrabold text-brand-900 uppercase text-[9px] tracking-wider">Connexion DECT Sans-Fil</h5>
                 <div className="space-y-1">
                   <label className="text-[9px] text-slate-500 block font-bold">BASE DECT ASSOCIÉE</label>
                   <input
@@ -479,7 +573,7 @@ export default function PropertyPanel({
 
               {localProps.hasExtensionModule && localProps.hasExtensionModule !== 'aucun module d\'extension' && (
                 <div className="space-y-1 animate-fade-in">
-                  <label className="text-[9px] text-slate-505 block font-bold">MODÈLE DU MODULE DSS</label>
+                  <label className="text-[9px] text-slate-500 block font-bold">MODÈLE DU MODULE DSS</label>
                   <select
                     value={localProps.extensionModuleModel || 'Aucun'}
                     onChange={(e) => handlePropertyChange('extensionModuleModel', e.target.value)}
@@ -549,8 +643,8 @@ export default function PropertyPanel({
         )}
 
         {/* Option PABX Mobile (ex: SFR PBU / Convergence Fixe-Mobile) */}
-        {(node.type === 'user_station' || node.type === 'mobile_external' || node.type === 'direct_line' || node.type === 'incoming_num' || localProps.phoneType === 'Mobile PBU') && (
-          <div className="space-y-2.5 p-3 bg-gradient-to-r from-red-50/80 to-amber-50/80 rounded-lg border border-red-200/70 font-medium text-xs shadow-2xs">
+        {(node.type === 'user_station' || node.type === 'mobile_external' || node.type === 'direct_line' || node.type === 'incoming_num' || node.type === 'mobile_pbu' || localProps.phoneType === 'Mobile PBU') && (
+          <div className="space-y-2.5 p-3 bg-gradient-to-r from-red-50/80 to-amber-50/80 rounded-lg border border-red-200/70 font-medium text-xs shadow-sm">
             <div className="flex items-center justify-between">
               <label className="flex items-center gap-2 cursor-pointer font-extrabold text-slate-800 text-[11px]">
                 <input
@@ -617,52 +711,436 @@ export default function PropertyPanel({
           </div>
         )}
 
-        {/* 3.5 Groupement & File d'attente (Group and Queue) */}
+        {/* 3.5 Groupement & File d'attente — distribution + options ACD */}
         {(node.type === 'call_group' || node.type === 'queue') && (
-          <div className="space-y-3.5 p-3 bg-yellow-50/40 rounded-lg border border-yellow-100 font-medium">
-            <h4 className="font-extrabold text-yellow-900 text-xs border-b border-yellow-100 pb-1 flex items-center justify-between">
-              <span>Paramètres du Groupement / File</span>
-              <span className="text-[8px] bg-yellow-600 text-white font-black px-1 rounded">GROUP</span>
+          <div className="space-y-3.5 p-3 bg-amber-50/50 rounded-lg border border-amber-200/80 font-medium">
+            <h4 className="font-extrabold text-amber-950 text-xs border-b border-amber-200 pb-1.5 flex items-center justify-between">
+              <span>{node.type === 'queue' ? "File d'attente (ACD)" : "Groupe d'appel"}</span>
+              <span className="text-[8px] bg-amber-700 text-white font-black px-1.5 py-0.5 rounded uppercase">
+                {node.type === 'queue' ? 'Queue' : 'Hunt'}
+              </span>
             </h4>
 
-            <div className="space-y-1">
-              <label className="text-[10px] text-slate-500 block font-bold uppercase">N° de Groupement / File (Interne)</label>
-              <input
-                id="prop-node-group-internal-num"
-                type="text"
-                value={localProps.internalNumber || ''}
-                onChange={(e) => handlePropertyChange('internalNumber', e.target.value)}
-                placeholder="ex: 550, 551..."
-                className="w-full border border-slate-300 rounded px-2.5 py-1.5 focus:outline-none bg-white text-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-xs font-semibold"
-              />
-            </div>
-
-            {node.type === 'call_group' && (
+            <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
-                <label className="text-[10px] text-slate-500 block uppercase font-bold">Nom du Groupe</label>
+                <label className="text-[10px] text-slate-500 block font-bold uppercase">N° interne</label>
+                <input
+                  id="prop-node-group-internal-num"
+                  type="text"
+                  value={localProps.internalNumber || ''}
+                  onChange={(e) => handlePropertyChange('internalNumber', e.target.value)}
+                  placeholder="ex: 550"
+                  className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 text-xs font-mono font-semibold"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] text-slate-500 block font-bold uppercase">Nom</label>
                 <input
                   id="prop-node-group-station-name"
                   type="text"
                   value={localProps.stationName || ''}
                   onChange={(e) => handlePropertyChange('stationName', e.target.value)}
-                  placeholder="ex: Service Commercial"
-                  className="w-full border border-slate-300 rounded px-2.5 py-1.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-xs"
+                  placeholder={node.type === 'queue' ? 'ex: File Télévente' : 'ex: Service Commercial'}
+                  className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500/20 text-xs"
                 />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] text-slate-500 block font-bold uppercase">Mode de distribution</label>
+              <select
+                id="prop-node-distribution-mode"
+                value={normalizeDistributionMode(localProps.groupType)}
+                onChange={(e) => handlePropertyChange('groupType', e.target.value)}
+                className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white text-xs text-slate-800 font-semibold"
+              >
+                {DISTRIBUTION_MODES.map((m) => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
+              </select>
+              <p className="text-[9px] text-slate-500 leading-snug">
+                {DISTRIBUTION_MODES.find((m) => m.value === normalizeDistributionMode(localProps.groupType))?.hint}
+              </p>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] text-slate-500 block font-bold uppercase">
+                Membres / agents (ext. — une par ligne ou séparées par ,)
+              </label>
+              <textarea
+                id="prop-node-queue-members"
+                rows={3}
+                value={localProps.queueMembers || ''}
+                onChange={(e) => handlePropertyChange('queueMembers', e.target.value)}
+                placeholder={"1101\n1102\n1103"}
+                className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <label className="text-[10px] text-slate-500 block font-bold uppercase">Sonnerie / agent (s)</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={120}
+                  value={localProps.agentRingTimeout ?? ''}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    if (raw === '') {
+                      const updatedProps = { ...localProps, agentRingTimeout: 0, ringTime: '' };
+                      setLocalProps(updatedProps);
+                      onUpdateNodeProperties(node.id, { agentRingTimeout: 0, ringTime: '' });
+                      return;
+                    }
+                    const v = Math.max(0, parseInt(raw, 10) || 0);
+                    const updatedProps = { ...localProps, agentRingTimeout: v, ringTime: v > 0 ? `${v}s` : '' };
+                    setLocalProps(updatedProps);
+                    onUpdateNodeProperties(node.id, { agentRingTimeout: v, ringTime: v > 0 ? `${v}s` : '' });
+                  }}
+                  placeholder="0"
+                  className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white font-mono text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] text-slate-500 block font-bold uppercase">Timeout global (s)</label>
+                <input
+                  id="prop-node-group-delay"
+                  type="number"
+                  min={0}
+                  max={3600}
+                  value={localProps.delayBeforeForward ?? ''}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    handlePropertyChange('delayBeforeForward', raw === '' ? 0 : Math.max(0, parseInt(raw, 10) || 0));
+                  }}
+                  placeholder="0"
+                  className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white font-mono text-xs"
+                />
+              </div>
+            </div>
+
+            {node.type === 'queue' && (
+              <div className="space-y-2.5 pt-1 border-t border-amber-200/80">
+                <p className="text-[9px] font-bold uppercase tracking-wide text-amber-900">Options file ACD</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-slate-500 block font-bold uppercase">Max en file</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={500}
+                      value={localProps.maxCallersInQueue ?? ''}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        handlePropertyChange('maxCallersInQueue', raw === '' ? undefined : Math.max(0, parseInt(raw, 10) || 0));
+                      }}
+                      placeholder="—"
+                      className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white font-mono text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-slate-500 block font-bold uppercase">Wrap-up / ACW (s)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={300}
+                      value={localProps.wrapUpTime ?? 0}
+                      onChange={(e) => handlePropertyChange('wrapUpTime', parseInt(e.target.value, 10) || 0)}
+                      className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white font-mono text-xs"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] text-slate-500 block font-bold uppercase">Musique d&apos;attente (.wav)</label>
+                  <input
+                    type="text"
+                    value={localProps.musicOnHold || ''}
+                    onChange={(e) => handlePropertyChange('musicOnHold', e.target.value)}
+                    placeholder="moh_default.wav"
+                    className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white text-xs"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-slate-500 block font-bold uppercase">Annonce périodique</label>
+                    <input
+                      type="text"
+                      value={localProps.periodicAnnounceFile || ''}
+                      onChange={(e) => handlePropertyChange('periodicAnnounceFile', e.target.value)}
+                      placeholder="annonce_attente.wav"
+                      className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-slate-500 block font-bold uppercase">Intervalle (s)</label>
+                    <input
+                      type="number"
+                      min={5}
+                      max={300}
+                      value={localProps.periodicAnnounceInterval ?? ''}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        handlePropertyChange('periodicAnnounceInterval', raw === '' ? 0 : Math.max(0, parseInt(raw, 10) || 0));
+                      }}
+                      placeholder="0"
+                      className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white font-mono text-xs"
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  {[
+                    { key: 'announcePosition' as const, label: 'Annoncer la position dans la file' },
+                    { key: 'announceHoldTime' as const, label: 'Annoncer le temps d\'attente estimé' },
+                    { key: 'callbackEnabled' as const, label: 'Callback (rappel automatique)' },
+                    { key: 'joinWhenEmpty' as const, label: 'Autoriser entrée si aucun agent' },
+                    { key: 'leaveWhenEmpty' as const, label: 'Quitter la file si plus d\'agents' },
+                  ].map((opt) => (
+                    <label key={opt.key} className="flex items-center gap-2 text-[11px] text-slate-700 font-semibold cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={!!localProps[opt.key]}
+                        onChange={(e) => handlePropertyChange(opt.key, e.target.checked)}
+                        className="rounded border-slate-300 text-brand-600 focus:ring-brand-500 w-3.5 h-3.5 cursor-pointer"
+                      />
+                      {opt.label}
+                    </label>
+                  ))}
+                </div>
               </div>
             )}
 
-            <div className="space-y-1">
-              <label className="text-[10px] text-slate-500 block font-bold uppercase">DÉLAI AVANT RENVOI / TIMEOUT (s)</label>
-              <input
-                id="prop-node-group-delay"
-                type="number"
-                min="1"
-                max="300"
-                value={localProps.delayBeforeForward || 15}
-                onChange={(e) => handlePropertyChange('delayBeforeForward', parseInt(e.target.value) || 15)}
-                className="w-full border border-slate-300 rounded px-2.5 py-1.5 focus:outline-none bg-white text-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-mono text-xs"
-              />
+            <div className="space-y-1.5 pt-1 border-t border-amber-200/80">
+              <label className="flex items-center gap-2 text-[11px] text-slate-700 font-semibold cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={localProps.skipBusyAgents !== false}
+                  onChange={(e) => handlePropertyChange('skipBusyAgents', e.target.checked)}
+                  className="rounded border-slate-300 text-brand-600 focus:ring-brand-500 w-3.5 h-3.5 cursor-pointer"
+                />
+                Ignorer les agents occupés / DND
+              </label>
+              <div className="space-y-1">
+                <label className="text-[10px] text-slate-500 block font-bold uppercase">Débordement (timeout / file pleine)</label>
+                <select
+                  value={localProps.overflowAction || ''}
+                  onChange={(e) => handlePropertyChange('overflowAction', e.target.value)}
+                  className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white text-xs text-slate-800"
+                >
+                  <option value="">— Non défini —</option>
+                  {OVERFLOW_ACTIONS.map((a) => (
+                    <option key={a} value={a}>{a}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] text-slate-500 block font-bold uppercase">Destination de débordement</label>
+                <input
+                  type="text"
+                  value={localProps.forwardDestination || ''}
+                  onChange={(e) => handlePropertyChange('forwardDestination', e.target.value)}
+                  placeholder="ex: 999, autre file, 06…"
+                  className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white text-xs font-semibold"
+                />
+              </div>
             </div>
+
+            <div className="space-y-1.5 pt-1 border-t border-amber-200/80">
+              <p className="text-[9px] font-bold uppercase tracking-wide text-amber-900">Options actives</p>
+              <div className="grid grid-cols-1 gap-1">
+                {(node.type === 'queue' ? QUEUE_FEATURE_OPTIONS : GROUP_FEATURE_OPTIONS).map((option) => {
+                  const active = (localProps.additionalOptions || []).includes(option);
+                  return (
+                    <label key={option} className="flex items-center gap-2 text-[10px] text-slate-700 font-medium cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={active}
+                        onChange={() => handleOptionToggle(option)}
+                        className="rounded border-slate-300 text-brand-600 w-3.5 h-3.5 cursor-pointer"
+                      />
+                      {option}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Nœuds avancés (trunk, files, mobile unifié, etc.) */}
+        {node.type === 'sip_trunk' && (
+          <div className="space-y-3 p-3 bg-emerald-50/70 rounded-lg border border-emerald-200">
+            <h4 className="font-bold text-emerald-950 text-xs uppercase">Trunk SIP</h4>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase">Fournisseur</label>
+                <input type="text" value={localProps.trunkProvider || ''} onChange={(e) => handlePropertyChange('trunkProvider', e.target.value)} placeholder="DSTNY, SFR, Orange…" className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white text-xs" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase">Canaux</label>
+                <input type="number" min={1} max={500} value={localProps.trunkChannels ?? 30} onChange={(e) => handlePropertyChange('trunkChannels', parseInt(e.target.value, 10) || 30)} className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white font-mono text-xs" />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-slate-500 uppercase">Plage DID / SDA</label>
+              <input type="text" value={localProps.didRange || ''} onChange={(e) => handlePropertyChange('didRange', e.target.value)} placeholder="0140203000–0140203099" className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white text-xs font-mono" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-slate-500 uppercase">Codecs</label>
+              <input type="text" value={localProps.codecPreference || ''} onChange={(e) => handlePropertyChange('codecPreference', e.target.value)} placeholder="G.711, G.729, Opus…" className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white text-xs" />
+            </div>
+            {TRUNK_FEATURE_OPTIONS.map((option) => (
+              <label key={option} className="flex items-center gap-2 text-[10px] font-medium text-slate-700 cursor-pointer">
+                <input type="checkbox" checked={(localProps.additionalOptions || []).includes(option)} onChange={() => handleOptionToggle(option)} className="rounded border-slate-300 text-brand-600 w-3.5 h-3.5" />
+                {option}
+              </label>
+            ))}
+          </div>
+        )}
+
+        {(node.type === 'conference' || node.type === 'parking' || node.type === 'paging' || node.type === 'disa' || node.type === 'cid_route' || node.type === 'outbound_route' || node.type === 'boss_secretary' || node.type === 'feature_code' || node.type === 'blacklist' || node.type === 'fax' || node.type === 'softphone' || node.type === 'mobile_pbu') && (
+          <div className="space-y-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
+            <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wide">
+              {NODE_METADATA[node.type]?.label || 'Paramètres'}
+            </h4>
+
+            {(node.type === 'conference' || node.type === 'disa') && (
+              <div className="grid grid-cols-2 gap-2">
+                {node.type === 'conference' && (
+                  <>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase">N° salle</label>
+                      <input type="text" value={localProps.internalNumber || ''} onChange={(e) => handlePropertyChange('internalNumber', e.target.value)} className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white font-mono text-xs" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase">Participants max</label>
+                      <input type="number" min={2} max={100} value={localProps.maxParticipants ?? 10} onChange={(e) => handlePropertyChange('maxParticipants', parseInt(e.target.value, 10) || 10)} className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white font-mono text-xs" />
+                    </div>
+                  </>
+                )}
+                <div className="space-y-1 col-span-2">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Code PIN</label>
+                  <input type="text" value={localProps.pinCode || ''} onChange={(e) => handlePropertyChange('pinCode', e.target.value)} placeholder="PIN d'accès" className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white font-mono text-xs" />
+                </div>
+              </div>
+            )}
+
+            {node.type === 'parking' && (
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Slots</label>
+                  <input type="text" value={localProps.parkingSlots || ''} onChange={(e) => handlePropertyChange('parkingSlots', e.target.value)} placeholder="701-710" className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white font-mono text-xs" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Timeout (s)</label>
+                  <input type="number" min={10} max={600} value={localProps.parkingTimeout ?? 60} onChange={(e) => handlePropertyChange('parkingTimeout', parseInt(e.target.value, 10) || 60)} className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white font-mono text-xs" />
+                </div>
+              </div>
+            )}
+
+            {node.type === 'paging' && (
+              <>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Zone de paging</label>
+                  <input type="text" value={localProps.pageZone || ''} onChange={(e) => handlePropertyChange('pageZone', e.target.value)} className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white text-xs" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Destinations / postes</label>
+                  <textarea rows={2} value={localProps.queueMembers || ''} onChange={(e) => handlePropertyChange('queueMembers', e.target.value)} placeholder="Ext par ligne" className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white font-mono text-xs" />
+                </div>
+              </>
+            )}
+
+            {(node.type === 'cid_route' || node.type === 'blacklist') && (
+              <>
+                {node.type === 'blacklist' && (
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">Mode</label>
+                    <select value={localProps.listMode || 'blacklist'} onChange={(e) => handlePropertyChange('listMode', e.target.value)} className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white text-xs">
+                      <option value="blacklist">Liste noire (bloquer)</option>
+                      <option value="whitelist">Liste blanche (autoriser)</option>
+                    </select>
+                  </div>
+                )}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Motifs / n° appelants</label>
+                  <textarea rows={3} value={localProps.cidPatterns || ''} onChange={(e) => handlePropertyChange('cidPatterns', e.target.value)} placeholder={"06*\n0140*\n+33…"} className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white font-mono text-xs" />
+                </div>
+              </>
+            )}
+
+            {node.type === 'outbound_route' && (
+              <div className="grid grid-cols-1 gap-2">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Préfixes / motifs</label>
+                  <input type="text" value={localProps.number || ''} onChange={(e) => handlePropertyChange('number', e.target.value)} className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white text-xs font-mono" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Trunk / fournisseur</label>
+                  <input type="text" value={localProps.trunkProvider || ''} onChange={(e) => handlePropertyChange('trunkProvider', e.target.value)} className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white text-xs" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">CLI présentée</label>
+                  <input type="text" value={localProps.outgoingCallerId || ''} onChange={(e) => handlePropertyChange('outgoingCallerId', e.target.value)} className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white text-xs font-mono" />
+                </div>
+              </div>
+            )}
+
+            {node.type === 'boss_secretary' && (
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Ext. boss</label>
+                  <input type="text" value={localProps.bossExtension || ''} onChange={(e) => handlePropertyChange('bossExtension', e.target.value)} className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white font-mono text-xs" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Ext. secrétaire</label>
+                  <input type="text" value={localProps.secretaryExtension || ''} onChange={(e) => handlePropertyChange('secretaryExtension', e.target.value)} className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white font-mono text-xs" />
+                </div>
+              </div>
+            )}
+
+            {node.type === 'feature_code' && (
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase">Code (* / #)</label>
+                <input type="text" value={localProps.featureCode || ''} onChange={(e) => handlePropertyChange('featureCode', e.target.value)} placeholder="*72, *8, #45…" className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white font-mono text-xs font-semibold" />
+              </div>
+            )}
+
+            {node.type === 'fax' && (
+              <div className="space-y-2">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">E-mail Fax2Email</label>
+                  <input type="email" value={localProps.faxEmail || ''} onChange={(e) => handlePropertyChange('faxEmail', e.target.value)} placeholder="fax@entreprise.fr" className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white text-xs" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Ext. / n° fax</label>
+                  <input type="text" value={localProps.internalNumber || ''} onChange={(e) => handlePropertyChange('internalNumber', e.target.value)} className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white font-mono text-xs" />
+                </div>
+              </div>
+            )}
+
+            {(node.type === 'softphone' || node.type === 'mobile_pbu') && (
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-[11px] font-semibold text-slate-700 cursor-pointer">
+                  <input type="checkbox" checked={!!localProps.linkusEnabled} onChange={(e) => handlePropertyChange('linkusEnabled', e.target.checked)} className="rounded border-slate-300 text-brand-600 w-3.5 h-3.5" />
+                  Application mobile / softphone IPBX
+                </label>
+                <label className="flex items-center gap-2 text-[11px] font-semibold text-slate-700 cursor-pointer">
+                  <input type="checkbox" checked={!!localProps.webrtcEnabled} onChange={(e) => handlePropertyChange('webrtcEnabled', e.target.checked)} className="rounded border-slate-300 text-brand-600 w-3.5 h-3.5" />
+                  WebRTC / navigateur
+                </label>
+                <label className="flex items-center gap-2 text-[11px] font-semibold text-slate-700 cursor-pointer">
+                  <input type="checkbox" checked={!!localProps.simultaneousRing} onChange={(e) => handlePropertyChange('simultaneousRing', e.target.checked)} className="rounded border-slate-300 text-brand-600 w-3.5 h-3.5" />
+                  Sonnerie simultanée fixe + mobile
+                </label>
+                {node.type === 'mobile_pbu' && PBU_FEATURE_OPTIONS.map((option) => (
+                  <label key={option} className="flex items-center gap-2 text-[10px] font-medium text-slate-700 cursor-pointer">
+                    <input type="checkbox" checked={(localProps.additionalOptions || []).includes(option)} onChange={() => handleOptionToggle(option)} className="rounded border-slate-300 text-brand-600 w-3.5 h-3.5" />
+                    {option}
+                  </label>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -700,7 +1178,7 @@ export default function PropertyPanel({
         </div>
 
         {/* 5. Advanced Call Forwarding Configuration (Manual vs Programmed) */}
-        {(node.type.startsWith('forward_') || node.type === 'transfer' || node.type === 'day_night' || node.type === 'time_range' || node.type === 'emergency_overflow') && (
+        {(node.type.startsWith('forward_') || node.type === 'transfer' || node.type === 'day_night' || node.type === 'time_range' || node.type === 'holiday' || node.type === 'emergency_overflow') && (
           <div className="space-y-3 p-3 bg-violet-500/5 rounded-lg border border-violet-500/10 font-medium">
             <h4 className="font-extrabold text-violet-900 text-xs flex items-center justify-between">
               <span>Configuration du Renvoi</span>
@@ -721,7 +1199,7 @@ export default function PropertyPanel({
             </div>
 
             {localProps.forwardType === 'manual' && (
-              <div className="p-2 bg-amber-500/10 border border-amber-500/20 rounded shadow-2xs space-y-2 animate-fade-in">
+              <div className="p-2 bg-amber-500/10 border border-amber-500/20 rounded shadow-sm space-y-2 animate-fade-in">
                 <span className="text-[9px] font-black text-amber-800 uppercase block tracking-wider">🛠️ Activation Manuelle</span>
                 <div className="space-y-1">
                   <label className="text-[9px] text-slate-500 block font-bold">DÉCLENCHEUR / COMMENT ACTIVER</label>
@@ -738,8 +1216,8 @@ export default function PropertyPanel({
             )}
 
             {localProps.forwardType === 'scheduled' && (
-              <div className="p-2 bg-indigo-500/10 border border-indigo-500/20 rounded shadow-2xs space-y-2 animate-fade-in">
-                <span className="text-[9px] font-black text-indigo-800 uppercase block tracking-wider">📅 Déclenchement Programmé</span>
+              <div className="p-2 bg-brand-500/10 border border-brand-500/20 rounded shadow-sm space-y-2 animate-fade-in">
+                <span className="text-[9px] font-black text-brand-800 uppercase block tracking-wider">📅 Déclenchement Programmé</span>
                 <p className="text-[9px] text-slate-500">Automatisé via calendrier horaire, week-ends, vacances ou jours fériés.</p>
               </div>
             )}
@@ -780,10 +1258,14 @@ export default function PropertyPanel({
                 <input
                   id="prop-node-delay"
                   type="number"
-                  min="1"
+                  min="0"
                   max="300"
-                  value={localProps.delayBeforeForward || 15}
-                  onChange={(e) => handlePropertyChange('delayBeforeForward', parseInt(e.target.value) || 15)}
+                  value={localProps.delayBeforeForward ?? ''}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    handlePropertyChange('delayBeforeForward', raw === '' ? 0 : Math.max(0, parseInt(raw, 10) || 0));
+                  }}
+                  placeholder="0"
                   className="w-full border border-white/40 rounded px-2 py-1 focus:outline-none bg-white/50 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-mono text-xs"
                 />
               </div>
@@ -819,6 +1301,36 @@ export default function PropertyPanel({
                 </label>
               </div>
             )}
+          </div>
+        )}
+
+        {node.type === 'hangup' && (
+          <div className="space-y-2 p-3 bg-slate-50 rounded-lg border border-slate-200">
+            <h4 className="font-bold text-slate-800 text-xs uppercase">Fin d&apos;appel</h4>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-slate-500 uppercase">Cause / motif</label>
+              <select
+                value={localProps.hangupCause || 'Normal Clearing'}
+                onChange={(e) => handlePropertyChange('hangupCause', e.target.value)}
+                className="w-full border border-slate-300 rounded px-2 py-1.5 bg-white text-xs"
+              >
+                <option>Normal Clearing</option>
+                <option>Busy</option>
+                <option>No Answer</option>
+                <option>Rejected</option>
+                <option>Congestion</option>
+                <option>Announcement then hangup</option>
+              </select>
+            </div>
+          </div>
+        )}
+
+        {node.type === 'junction' && (
+          <div className="space-y-2 p-3 bg-slate-50 rounded-lg border border-dashed border-slate-300">
+            <h4 className="font-bold text-slate-800 text-xs uppercase">Nœud de liaison</h4>
+            <p className="text-[11px] text-slate-600 leading-relaxed">
+              Point de jonction neutre : branchez-y plusieurs entrées et/ou plusieurs sorties pour regrouper ou redistribuer le flux sans logique métier.
+            </p>
           </div>
         )}
 
@@ -883,7 +1395,7 @@ export default function PropertyPanel({
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[9px] text-slate-505 block font-bold uppercase">Code fonction associé</label>
+                  <label className="text-[9px] text-slate-500 block font-bold uppercase">Code fonction associé</label>
                   <input
                     type="text"
                     placeholder="ex: *74"
@@ -917,7 +1429,7 @@ export default function PropertyPanel({
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[9px] text-slate-505 block font-bold uppercase">Statut ciblé</label>
+                  <label className="text-[9px] text-slate-500 block font-bold uppercase">Statut ciblé</label>
                   <select
                     value={localProps.keyConfig.targetStatus || 'nuit'}
                     onChange={(e) => handleKeyConfigChange('targetStatus', e.target.value)}
@@ -967,10 +1479,10 @@ export default function PropertyPanel({
         </div>
 
         {/* 7. Schedule timer and business presets */}
-        {(node.type === 'day_night' || node.type === 'time_range') && (
-          <div className="space-y-3 p-3 bg-indigo-500/5 rounded-lg border border-indigo-500/10 font-medium text-indigo-950">
+        {(node.type === 'day_night' || node.type === 'time_range' || node.type === 'holiday') && (
+          <div className="space-y-3 p-3 bg-brand-500/5 rounded-lg border border-brand-500/10 font-medium text-brand-900">
             <h4 className="font-bold text-slate-700 text-xs flex items-center gap-1">
-              <Clock size={13} className="text-indigo-600" />
+              <Clock size={13} className="text-brand-600" />
               Saisie du Calendrier / Plages Horaires
             </h4>
 
@@ -984,7 +1496,7 @@ export default function PropertyPanel({
                     handlePropertyChange('timeSchedules', undefined);
                   }
                 }}
-                className={`flex-1 text-[9px] py-1 font-bold rounded-sm cursor-pointer ${!localProps.timeSchedules ? 'bg-white text-blue-750 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+                className={`flex-1 text-[9px] py-1 font-bold rounded-sm cursor-pointer ${!localProps.timeSchedules ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
               >
                 Texte Simple
               </button>
@@ -1000,7 +1512,7 @@ export default function PropertyPanel({
                     handlePropertyChange('timeSchedule', formatted);
                   }
                 }}
-                className={`flex-1 text-[9px] py-1 font-bold rounded-sm cursor-pointer ${localProps.timeSchedules ? 'bg-white text-blue-750 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+                className={`flex-1 text-[9px] py-1 font-bold rounded-sm cursor-pointer ${localProps.timeSchedules ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
               >
                 Planificateur Multi-jours
               </button>
@@ -1028,21 +1540,21 @@ export default function PropertyPanel({
                     <button
                       type="button"
                       onClick={() => handlePropertyChange('timeSchedule', 'Lundi-Vendredi 08:30-12:00, 14:00-18:00')}
-                      className="bg-white/60 hover:bg-indigo-500/10 border border-white/40 py-1 px-1.5 rounded cursor-pointer text-slate-700 transition-all font-semibold"
+                      className="bg-white/60 hover:bg-brand-500/10 border border-white/40 py-1 px-1.5 rounded cursor-pointer text-slate-700 transition-all font-semibold"
                     >
                       Bureau (Lu-Ve 8h30-18h0)
                     </button>
                     <button
                       type="button"
                       onClick={() => handlePropertyChange('timeSchedule', 'Lundi-Vendredi 09:00-12:30, 14:00-17:30')}
-                      className="bg-white/60 hover:bg-indigo-500/10 border border-white/40 py-1 px-1.5 rounded cursor-pointer text-slate-700 transition-all font-semibold"
+                      className="bg-white/60 hover:bg-brand-500/10 border border-white/40 py-1 px-1.5 rounded cursor-pointer text-slate-700 transition-all font-semibold"
                     >
                       Service (Lu-Ve 9h-17h30)
                     </button>
                     <button
                       type="button"
                       onClick={() => handlePropertyChange('timeSchedule', 'Lundi-Samedi 08:00-19:00')}
-                      className="bg-white/60 hover:bg-indigo-500/10 border border-white/40 py-1 px-1.5 rounded cursor-pointer text-slate-700 transition-all font-semibold"
+                      className="bg-white/60 hover:bg-brand-500/10 border border-white/40 py-1 px-1.5 rounded cursor-pointer text-slate-700 transition-all font-semibold"
                     >
                       Journée Continue
                     </button>
@@ -1094,7 +1606,7 @@ export default function PropertyPanel({
                   };
 
                   return (
-                    <div key={sIndex} className="p-2.5 bg-white border border-slate-200 rounded-lg shadow-2xs space-y-2 relative">
+                    <div key={sIndex} className="p-2.5 bg-white border border-slate-200 rounded-lg shadow-sm space-y-2 relative">
                       <div className="flex items-center justify-between">
                         <span className="font-extrabold text-slate-700 uppercase text-[9px]">Créneau #{sIndex + 1}</span>
                         {(localProps.timeSchedules || []).length > 1 && (
@@ -1122,7 +1634,7 @@ export default function PropertyPanel({
                                 onClick={() => toggleDay(d)}
                                 className={`w-6 h-6 rounded-full text-[9px] font-bold flex items-center justify-center transition-all cursor-pointer ${
                                   isSelected
-                                    ? 'bg-indigo-600 text-white shadow-xs'
+                                    ? 'bg-brand-600 text-white shadow-sm'
                                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                                 }`}
                                 title={d}
@@ -1142,7 +1654,7 @@ export default function PropertyPanel({
                             type="time"
                             value={sched.start || '08:30'}
                             onChange={(e) => updateSchedules({ ...sched, start: e.target.value })}
-                            className="w-full border border-slate-200 bg-slate-50 rounded px-1.5 py-1 text-xs focus:ring-1 focus:ring-indigo-500 font-semibold text-slate-800"
+                            className="w-full border border-slate-200 bg-slate-50 rounded px-1.5 py-1 text-xs focus:ring-1 focus:ring-brand-500 font-semibold text-slate-800"
                           />
                         </div>
                         <div>
@@ -1151,7 +1663,7 @@ export default function PropertyPanel({
                             type="time"
                             value={sched.end || '18:00'}
                             onChange={(e) => updateSchedules({ ...sched, end: e.target.value })}
-                            className="w-full border border-slate-200 bg-slate-50 rounded px-1.5 py-1 text-xs focus:ring-1 focus:ring-indigo-500 font-semibold text-slate-800"
+                            className="w-full border border-slate-200 bg-slate-50 rounded px-1.5 py-1 text-xs focus:ring-1 focus:ring-brand-500 font-semibold text-slate-800"
                           />
                         </div>
                       </div>
@@ -1168,7 +1680,7 @@ export default function PropertyPanel({
                     ];
                     handlePropertyChange('timeSchedules', nextSchedules);
                   }}
-                  className="w-full py-1.5 border border-dashed border-indigo-400 bg-indigo-50/20 text-indigo-750 hover:bg-indigo-50 hover:border-indigo-500 text-[10px] font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer"
+                  className="w-full py-1.5 border border-dashed border-brand-400 bg-brand-50/20 text-brand-700 hover:bg-brand-50 hover:border-brand-500 text-[10px] font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer"
                 >
                   <Plus size={11} strokeWidth={2.5} />
                   <span>Ajouter un autre horaire</span>
@@ -1184,12 +1696,12 @@ export default function PropertyPanel({
           </div>
         )}
 
-        {/* 8. Audio Prompt files */}
+        {/* 8. Audio Prompt files + SVI avancé */}
         {(node.type === 'ivr' || node.type === 'custom_audio' || node.type === 'voicemail' || node.type === 'greeting') && (
           <div className="space-y-2 p-3 bg-rose-500/5 rounded-lg border border-rose-500/10 font-medium text-rose-950">
             <h4 className="font-bold text-slate-700 text-xs flex items-center gap-1">
               <Volume2 size={13} className="text-rose-600" />
-              Configuration Audio & Messagerie
+              Configuration Audio &amp; Messagerie
             </h4>
             
             {(node.type === 'voicemail' || node.type === 'ivr' || node.type === 'greeting') && (
@@ -1201,31 +1713,125 @@ export default function PropertyPanel({
                   value={localProps.internalNumber || ''}
                   onChange={(e) => handlePropertyChange('internalNumber', e.target.value)}
                   placeholder="ex: 999, 220 ou votre numéro..."
-                  className="w-full border border-white/40 rounded px-2 py-1 focus:outline-none bg-white/50 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-850 font-mono text-xs font-semibold"
+                  className="w-full border border-slate-200 rounded px-2 py-1 focus:outline-none bg-white focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 text-slate-800 font-mono text-xs font-semibold"
                 />
               </div>
             )}
             
             <div className="space-y-1">
-              <label className="text-[10px] text-slate-500 block font-bold uppercase">FICHIER ASSOCIÉ (.WAV / .MP3)</label>
+              <label className="text-[10px] text-slate-500 block font-bold uppercase">Fichier associé (.wav / .mp3)</label>
               <input
                 id="prop-node-audio-name"
                 type="text"
                 value={localProps.audioMessageName || ''}
                 onChange={(e) => handlePropertyChange('audioMessageName', e.target.value)}
                 placeholder="ex: message_bienvenue.wav"
-                className="w-full border border-white/40 rounded px-2 py-1 focus:outline-none bg-white/50 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-850"
+                className="w-full border border-slate-200 rounded px-2 py-1 focus:outline-none bg-white focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 text-slate-800"
               />
             </div>
+
+            {node.type === 'ivr' && (
+              <div className="space-y-2.5 border-t border-rose-200/60 pt-2.5 mt-1">
+                <p className="text-[9px] font-bold uppercase tracking-wide text-rose-900">Options SVI</p>
+                <div className="space-y-1">
+                  <label className="text-[10px] text-slate-500 block font-bold uppercase">Plan de touches (DTMF)</label>
+                  <textarea
+                    rows={3}
+                    value={localProps.ivrMenuMap || ''}
+                    onChange={(e) => handlePropertyChange('ivrMenuMap', e.target.value)}
+                    placeholder={"1 = Commercial\n2 = Support\n0 = Standard"}
+                    className="w-full border border-slate-200 rounded px-2 py-1.5 bg-white text-xs font-mono"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-slate-500 block font-bold uppercase">Timeout DTMF (s)</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={60}
+                      value={localProps.digitTimeout ?? 5}
+                      onChange={(e) => handlePropertyChange('digitTimeout', parseInt(e.target.value, 10) || 5)}
+                      className="w-full border border-slate-200 rounded px-2 py-1 bg-white font-mono text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-slate-500 block font-bold uppercase">Max erreurs</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={10}
+                      value={localProps.maxInvalidDigits ?? 3}
+                      onChange={(e) => handlePropertyChange('maxInvalidDigits', parseInt(e.target.value, 10) || 3)}
+                      className="w-full border border-slate-200 rounded px-2 py-1 bg-white font-mono text-xs"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] text-slate-500 block font-bold uppercase">Destination si touche invalide</label>
+                  <input
+                    type="text"
+                    value={localProps.invalidDestination || ''}
+                    onChange={(e) => handlePropertyChange('invalidDestination', e.target.value)}
+                    placeholder="ex: répétition menu, 9, messagerie…"
+                    className="w-full border border-slate-200 rounded px-2 py-1 bg-white text-xs"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] text-slate-500 block font-bold uppercase">Destination si timeout</label>
+                  <input
+                    type="text"
+                    value={localProps.timeoutDestination || ''}
+                    onChange={(e) => handlePropertyChange('timeoutDestination', e.target.value)}
+                    placeholder="ex: standard, raccrocher…"
+                    className="w-full border border-slate-200 rounded px-2 py-1 bg-white text-xs"
+                  />
+                </div>
+                <div className="grid grid-cols-1 gap-1 pt-1">
+                  {IVR_FEATURE_OPTIONS.map((option) => {
+                    const active = (localProps.additionalOptions || []).includes(option);
+                    return (
+                      <label key={option} className="flex items-center gap-2 text-[10px] text-slate-700 font-medium cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={active}
+                          onChange={() => handleOptionToggle(option)}
+                          className="rounded border-slate-300 text-brand-600 w-3.5 h-3.5 cursor-pointer"
+                        />
+                        {option}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             
             <div className="flex items-center gap-1.5 mt-2">
-              <div className="p-1 bg-white/60 border border-white/40 rounded text-[9px] w-full text-center hover:bg-white/80 cursor-pointer text-slate-600 truncate">
+              <div className="p-1 bg-white border border-slate-200 rounded text-[9px] w-full text-center text-slate-600 truncate">
                 {localProps.audioMessageName || 'standard_pre_decroche.wav'}
               </div>
             </div>
 
             {node.type === 'voicemail' && (
               <div className="border-t border-rose-200/50 pt-2.5 mt-2 space-y-2">
+                <label className="flex items-center gap-2 text-[11px] font-semibold text-slate-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={!!localProps.voicemailToEmail}
+                    onChange={(e) => handlePropertyChange('voicemailToEmail', e.target.checked)}
+                    className="rounded text-rose-600 w-4 h-4 cursor-pointer"
+                  />
+                  Voicemail to Email
+                </label>
+                {localProps.voicemailToEmail && (
+                  <input
+                    type="email"
+                    value={localProps.voicemailEmail || ''}
+                    onChange={(e) => handlePropertyChange('voicemailEmail', e.target.value)}
+                    placeholder="destinataire@entreprise.fr"
+                    className="w-full border border-slate-200 rounded px-2 py-1.5 bg-white text-xs"
+                  />
+                )}
                 <div className="flex items-center justify-between">
                   <label htmlFor="prop-show-voicemail-text" className="text-[10px] text-slate-600 font-bold uppercase cursor-pointer">Afficher le texte sur le nœud</label>
                   <input
@@ -1237,18 +1843,41 @@ export default function PropertyPanel({
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] text-slate-500 block font-bold uppercase">Texte à afficher (Sauts de ligne autorisés)</label>
+                  <label className="text-[10px] text-slate-500 block font-bold uppercase">Texte à afficher (sauts de ligne autorisés)</label>
                   <textarea
                     id="prop-voicemail-text"
                     rows={3}
                     value={localProps.voicemailText || ''}
                     onChange={(e) => handlePropertyChange('voicemailText', e.target.value)}
                     placeholder="Saisissez le texte d'annonce ou les instructions..."
-                    className="w-full border border-white/40 bg-white/50 rounded p-2 focus:ring-2 focus:ring-rose-500/10 focus:outline-none text-xs text-slate-800"
+                    className="w-full border border-slate-200 bg-white rounded p-2 focus:ring-2 focus:ring-rose-500/10 focus:outline-none text-xs text-slate-800"
                   />
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Options poste utilisateur */}
+        {(node.type === 'user_station' || node.type === 'switchboard' || node.type === 'direct_line' || node.type === 'softphone' || node.type === 'mobile_pbu') && (
+          <div className="space-y-2 p-3 bg-sky-50/60 rounded-lg border border-sky-200/70">
+            <h4 className="font-bold text-sky-950 text-xs uppercase tracking-wide">Options téléphonie poste</h4>
+            <div className="grid grid-cols-1 gap-1">
+              {STATION_FEATURE_OPTIONS.map((option) => {
+                const active = (localProps.additionalOptions || []).includes(option);
+                return (
+                  <label key={option} className="flex items-center gap-2 text-[10px] text-slate-700 font-medium cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={active}
+                      onChange={() => handleOptionToggle(option)}
+                      className="rounded border-slate-300 text-brand-600 w-3.5 h-3.5 cursor-pointer"
+                    />
+                    {option}
+                  </label>
+                );
+              })}
+            </div>
           </div>
         )}
 
@@ -1298,94 +1927,42 @@ export default function PropertyPanel({
           </div>
         </div>
 
-        {/* Option d'affichage sur le schéma */}
-        <div className="space-y-2.5 p-3 bg-slate-50 border border-slate-200 rounded-lg">
-          <h4 className="font-bold text-slate-700 text-[11px] uppercase tracking-wider flex items-center gap-1">
-            <Settings size={12} className="text-blue-600" />
-            Visibilité sur la carte
-          </h4>
-          <p className="text-[10px] text-slate-500 leading-tight">
-            Cochez les éléments à masquer pour épurer le schéma :
-          </p>
-
-          <div className="space-y-2 pt-1">
-            {node.type === 'user_station' && (
-              <>
-                <label className="flex items-center gap-2 text-slate-600 font-semibold cursor-pointer text-[11px] hover:text-slate-800">
-                  <input
-                    type="checkbox"
-                    checked={localProps.hideInternalNumber || false}
-                    onChange={(e) => handlePropertyChange('hideInternalNumber', e.target.checked)}
-                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5 cursor-pointer"
-                  />
-                  <span>Masquer le numéro interne</span>
-                </label>
-
-                <label className="flex items-center gap-2 text-slate-600 font-semibold cursor-pointer text-[11px] hover:text-slate-800">
-                  <input
-                    type="checkbox"
-                    checked={localProps.hideExternalNumber || false}
-                    onChange={(e) => handlePropertyChange('hideExternalNumber', e.target.checked)}
-                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5 cursor-pointer"
-                  />
-                  <span>Masquer la SDA (Numéro externe)</span>
-                </label>
-              </>
-            )}
-
-            <label className="flex items-center gap-2 text-slate-600 font-semibold cursor-pointer text-[11px] hover:text-slate-800">
+        {/* Affinages d'affichage (poste uniquement) */}
+        {node.type === 'user_station' || node.type === 'softphone' || node.type === 'mobile_pbu' || node.type === 'direct_line'
+          ? getDisplayDensity(node) !== 'compact' && (
+          <div className="space-y-2 p-3 bg-slate-50 border border-slate-200 rounded-lg">
+            <h4 className="font-bold text-slate-700 text-[11px] uppercase tracking-wider">Affichage du terminal</h4>
+            <label className="flex items-center gap-2 text-slate-600 font-semibold cursor-pointer text-[11px]">
               <input
                 type="checkbox"
-                checked={localProps.hidePrimaryDetails || false}
-                onChange={(e) => handlePropertyChange('hidePrimaryDetails', e.target.checked)}
-                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5 cursor-pointer"
+                checked={localProps.hideInternalNumber || false}
+                onChange={(e) => handlePropertyChange('hideInternalNumber', e.target.checked)}
+                className="rounded border-slate-300 text-brand-600 w-3.5 h-3.5 cursor-pointer"
               />
-              <span>Masquer détails principaux (N°, Ext)</span>
+              <span>Masquer le n° interne</span>
             </label>
-
-            <label className="flex items-center gap-2 text-slate-600 font-semibold cursor-pointer text-[11px] hover:text-slate-800">
+            <label className="flex items-center gap-2 text-slate-600 font-semibold cursor-pointer text-[11px]">
               <input
                 type="checkbox"
-                checked={localProps.hideDescription || false}
-                onChange={(e) => handlePropertyChange('hideDescription', e.target.checked)}
-                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5 cursor-pointer"
+                checked={localProps.hideExternalNumber || false}
+                onChange={(e) => handlePropertyChange('hideExternalNumber', e.target.checked)}
+                className="rounded border-slate-300 text-brand-600 w-3.5 h-3.5 cursor-pointer"
               />
-              <span>Masquer la description</span>
+              <span>Masquer la SDA</span>
             </label>
-
-            {(localProps.hasPabxOption || localProps.phoneType === 'Mobile PBU') && (
-              <label className="flex items-center gap-2 text-red-700 font-semibold cursor-pointer text-[11px] hover:text-red-900 bg-red-50 p-1.5 rounded border border-red-200">
+            {(localProps.hasPabxOption || localProps.phoneType === 'Mobile PBU' || node.type === 'mobile_pbu') && (
+              <label className="flex items-center gap-2 text-slate-600 font-semibold cursor-pointer text-[11px]">
                 <input
                   type="checkbox"
                   checked={localProps.hidePabxBadge || false}
                   onChange={(e) => handlePropertyChange('hidePabxBadge', e.target.checked)}
-                  className="rounded border-slate-300 text-red-600 focus:ring-red-500 w-3.5 h-3.5 cursor-pointer"
+                  className="rounded border-slate-300 text-brand-600 w-3.5 h-3.5 cursor-pointer"
                 />
                 <span>Masquer le badge PABX</span>
               </label>
             )}
-
-            <label className="flex items-center gap-2 text-slate-600 font-semibold cursor-pointer text-[11px] hover:text-slate-800">
-              <input
-                type="checkbox"
-                checked={localProps.hideBadges || false}
-                onChange={(e) => handlePropertyChange('hideBadges', e.target.checked)}
-                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5 cursor-pointer"
-              />
-              <span>Masquer les badges de statut / touches</span>
-            </label>
-
-            <label className="flex items-center gap-2 text-slate-600 font-semibold cursor-pointer text-[11px] hover:text-slate-800">
-              <input
-                type="checkbox"
-                checked={localProps.hideMetadata || false}
-                onChange={(e) => handlePropertyChange('hideMetadata', e.target.checked)}
-                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5 cursor-pointer"
-              />
-              <span>Masquer le type et coordonnées (x,y)</span>
-            </label>
           </div>
-        </div>
+        ) : null}
 
         {/* Delete button */}
         <button
@@ -1393,7 +1970,7 @@ export default function PropertyPanel({
           onClick={() => {
             onDeleteNode(node.id);
           }}
-          className="w-full bg-rose-500/10 border border-rose-500/20 text-rose-700 hover:bg-rose-500 hover:text-white font-semibold py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+          className="w-full bg-rose-500/10 border border-rose-500/20 text-rose-700 hover:bg-rose-500 hover:text-white font-semibold py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
         >
           <Trash2 size={13} />
           <span>Supprimer ce bloc</span>
@@ -1401,20 +1978,11 @@ export default function PropertyPanel({
 
         {/* Save as Reusable Model / Template Box */}
         <div className="border-t border-white/20 pt-4">
-          {!isSavingTemplate ? (
-            <button
-              id="btn-trigger-save-tmpl"
-              onClick={() => setIsSavingTemplate(true)}
-              className="w-full bg-white/50 hover:bg-blue-500/10 border border-white/40 text-slate-700 font-bold py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
-            >
-              <BookmarkCheck size={14} className="text-emerald-600" />
-              <span>Enregistrer comme modèle réutilisable</span>
-            </button>
-          ) : (
-            <div className="p-3 border border-emerald-550/20 bg-emerald-500/5 rounded-lg space-y-3.5 select-none backdrop-blur-xs shadow-2xs">
-              <h4 className="font-bold text-emerald-850 text-xs flex items-center gap-1">
-                <Sparkles size={13} />
-                Nouveau modèle dynamique
+          {isSavingTemplate && (
+            <div className="p-3 border border-emerald-500/20 bg-emerald-500/5 rounded-lg space-y-3.5 select-none shadow-sm">
+              <h4 className="font-bold text-emerald-800 text-xs flex items-center gap-1">
+                <BookmarkCheck size={13} />
+                Nouveau modèle
               </h4>
               
               <div className="space-y-1">

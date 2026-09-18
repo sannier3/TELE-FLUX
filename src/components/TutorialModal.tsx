@@ -1,16 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   X, 
   MousePointer, 
   Move, 
   Keyboard, 
-  Sparkles, 
+  Layers,
   RotateCcw, 
   PlusCircle, 
   Trash2, 
   CheckCircle2,
   HelpCircle,
-  MousePointerClick
+  MousePointerClick,
+  Search,
+  Copy,
+  Settings,
+  RefreshCw
 } from 'lucide-react';
 
 interface TutorialModalProps {
@@ -19,13 +23,38 @@ interface TutorialModalProps {
 }
 
 export const TutorialModal: React.FC<TutorialModalProps> = ({ isOpen, onClose }) => {
-  const [activeTab, setActiveTab] = useState<'labels' | 'connections' | 'nodes' | 'shortcuts'>('labels');
+  const [activeTab, setActiveTab] = useState<'labels' | 'connections' | 'nodes' | 'params' | 'shortcuts'>('labels');
 
   // Sub-modes for Connections (selected via the 3 bottom cards)
   const [activeConnMode, setActiveConnMode] = useState<0 | 1 | 2>(0);
 
   // Sub-modes for Node Organization (selected via the 3 bottom cards)
   const [activeNodeCase, setActiveNodeCase] = useState<0 | 1 | 2>(0);
+
+  // Sub-modes for Paramètres (recherche / cloner / densité)
+  const [activeParamCase, setActiveParamCase] = useState<0 | 1 | 2>(0);
+
+  // Auto-cycle des démos pour rendre les animations plus vivantes
+  useEffect(() => {
+    if (!isOpen) return;
+    const timers: number[] = [];
+    if (activeTab === 'connections') {
+      timers.push(window.setInterval(() => {
+        setActiveConnMode((m) => ((m + 1) % 3) as 0 | 1 | 2);
+      }, 5500));
+    }
+    if (activeTab === 'nodes') {
+      timers.push(window.setInterval(() => {
+        setActiveNodeCase((m) => ((m + 1) % 3) as 0 | 1 | 2);
+      }, 5000));
+    }
+    if (activeTab === 'params') {
+      timers.push(window.setInterval(() => {
+        setActiveParamCase((m) => ((m + 1) % 3) as 0 | 1 | 2);
+      }, 4500));
+    }
+    return () => timers.forEach(clearInterval);
+  }, [isOpen, activeTab]);
 
   if (!isOpen) return null;
 
@@ -36,20 +65,20 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({ isOpen, onClose })
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white px-6 py-4 flex items-center justify-between shadow-md">
+        <div className="bg-ink-950 text-white px-6 py-4 flex items-center justify-between border-b border-white/10">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-indigo-300 shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-brand-600/20 border border-brand-500/30 flex items-center justify-center text-brand-300 shrink-0">
               <HelpCircle size={22} />
             </div>
             <div>
               <h2 className="text-base font-bold text-white flex items-center gap-2">
-                <span>Tutoriel d'utilisation &amp; Gestuelle</span>
-                <span className="bg-indigo-500/30 text-indigo-200 text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border border-indigo-400/30">
-                  Guide Rapide
+                <span>Tutoriel d&apos;utilisation</span>
+                <span className="bg-brand-600/25 text-brand-200 text-[10px] uppercase font-bold px-2 py-0.5 rounded-md border border-brand-500/30">
+                  Guide
                 </span>
               </h2>
-              <p className="text-xs text-slate-300">
-                Découvrez les gestes interactifs, animations et raccourcis pour concevoir vos schémas SVI
+              <p className="text-xs text-slate-400">
+                Gestes, connexions et raccourcis pour concevoir vos schémas
               </p>
             </div>
           </div>
@@ -68,11 +97,11 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({ isOpen, onClose })
             onClick={() => setActiveTab('labels')}
             className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
               activeTab === 'labels'
-                ? 'bg-white text-indigo-700 shadow-sm border border-slate-200'
+                ? 'bg-white text-brand-700 shadow-sm border border-slate-200'
                 : 'text-slate-600 hover:bg-slate-200/60'
             }`}
           >
-            <Move size={14} className={activeTab === 'labels' ? 'text-indigo-600' : 'text-slate-400'} />
+            <Move size={14} className={activeTab === 'labels' ? 'text-brand-600' : 'text-slate-400'} />
             <span>Étiquettes (Drag &amp; Dbl-Clic)</span>
           </button>
 
@@ -80,11 +109,11 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({ isOpen, onClose })
             onClick={() => setActiveTab('connections')}
             className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
               activeTab === 'connections'
-                ? 'bg-white text-indigo-700 shadow-sm border border-slate-200'
+                ? 'bg-white text-brand-700 shadow-sm border border-slate-200'
                 : 'text-slate-600 hover:bg-slate-200/60'
             }`}
           >
-            <PlusCircle size={14} className={activeTab === 'connections' ? 'text-indigo-600' : 'text-slate-400'} />
+            <PlusCircle size={14} className={activeTab === 'connections' ? 'text-brand-600' : 'text-slate-400'} />
             <span>Liaisons &amp; Connecteurs</span>
           </button>
 
@@ -92,23 +121,35 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({ isOpen, onClose })
             onClick={() => setActiveTab('nodes')}
             className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
               activeTab === 'nodes'
-                ? 'bg-white text-indigo-700 shadow-sm border border-slate-200'
+                ? 'bg-white text-brand-700 shadow-sm border border-slate-200'
                 : 'text-slate-600 hover:bg-slate-200/60'
             }`}
           >
-            <Sparkles size={14} className={activeTab === 'nodes' ? 'text-indigo-600' : 'text-slate-400'} />
+            <Layers size={14} className={activeTab === 'nodes' ? 'text-brand-600' : 'text-slate-400'} />
             <span>Organisation des Blocs</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('params')}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'params'
+                ? 'bg-white text-brand-700 shadow-sm border border-slate-200'
+                : 'text-slate-600 hover:bg-slate-200/60'
+            }`}
+          >
+            <Settings size={14} className={activeTab === 'params' ? 'text-brand-600' : 'text-slate-400'} />
+            <span>Palette &amp; Paramètres</span>
           </button>
 
           <button
             onClick={() => setActiveTab('shortcuts')}
             className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
               activeTab === 'shortcuts'
-                ? 'bg-white text-indigo-700 shadow-sm border border-slate-200'
+                ? 'bg-white text-brand-700 shadow-sm border border-slate-200'
                 : 'text-slate-600 hover:bg-slate-200/60'
             }`}
           >
-            <Keyboard size={14} className={activeTab === 'shortcuts' ? 'text-indigo-600' : 'text-slate-400'} />
+            <Keyboard size={14} className={activeTab === 'shortcuts' ? 'text-brand-600' : 'text-slate-400'} />
             <span>Raccourcis Clavier</span>
           </button>
         </div>
@@ -141,35 +182,35 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({ isOpen, onClose })
                 </svg>
 
                 {/* Animated Drag Label */}
-                <div className="absolute top-[75px] left-[250px] animate-tutorial-label-move bg-slate-800/90 text-slate-100 border border-indigo-400/80 rounded-lg px-3 py-1.5 shadow-xl flex items-center gap-2 text-xs font-medium backdrop-blur-md z-10">
-                  <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
+                <div className="absolute top-[75px] left-[250px] animate-tutorial-label-move bg-slate-800/90 text-slate-100 border border-brand-400/80 rounded-lg px-3 py-1.5 shadow-xl flex items-center gap-2 text-xs font-medium backdrop-blur-md z-10">
+                  <span className="w-2 h-2 rounded-full bg-brand-400 animate-pulse" />
                   <span>Appui Touche 1 (Commercial)</span>
-                  <span className="text-[10px] bg-indigo-500/30 text-indigo-300 px-1.5 py-0.5 rounded border border-indigo-400/30">
+                  <span className="text-[10px] bg-brand-500/30 text-brand-300 px-1.5 py-0.5 rounded border border-brand-400/30">
                     Étiquette
                   </span>
                 </div>
 
                 {/* Click Halo Ripples (Only appear at grab & double click moments) */}
-                <div className="absolute left-[250px] top-[75px] w-8 h-8 rounded-full border-2 border-indigo-400 bg-indigo-500/30 animate-tutorial-label-ripple1 pointer-events-none z-20" />
-                <div className="absolute left-[325px] top-[113px] w-8 h-8 rounded-full border-2 border-indigo-400 bg-indigo-500/30 animate-tutorial-label-ripple2 pointer-events-none z-20" />
+                <div className="absolute left-[250px] top-[75px] w-8 h-8 rounded-full border-2 border-brand-400 bg-brand-500/30 animate-tutorial-label-ripple1 pointer-events-none z-20" />
+                <div className="absolute left-[325px] top-[113px] w-8 h-8 rounded-full border-2 border-brand-400 bg-brand-500/30 animate-tutorial-label-ripple2 pointer-events-none z-20" />
 
                 {/* Animated Mouse Cursor */}
                 <div className="absolute animate-tutorial-label-cursor pointer-events-none z-30 text-white drop-shadow-md">
-                  <MousePointer size={22} className="fill-indigo-500 text-white" />
+                  <MousePointer size={22} className="fill-brand-500 text-white" />
                 </div>
 
                 {/* Status Badges on Canvas */}
                 <div className="absolute bottom-3 left-3 bg-slate-800/80 backdrop-blur-sm border border-slate-700 rounded-lg px-3 py-1.5 text-[11px] text-slate-300 flex items-center gap-2">
-                  <RotateCcw size={13} className="text-indigo-400 shrink-0" />
+                  <RotateCcw size={13} className="text-brand-400 shrink-0" />
                   <span><b>1. Glisser-déposer :</b> Déplace l'étiquette &bull; <b>2. Double-clic :</b> Replace au centre</span>
                 </div>
               </div>
 
               {/* Explanations */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-indigo-50/70 border border-indigo-150 rounded-xl p-4 space-y-2">
-                  <div className="flex items-center gap-2 font-bold text-indigo-950 text-xs">
-                    <Move size={15} className="text-indigo-600" />
+                <div className="bg-brand-50 border border-brand-100 rounded-xl p-4 space-y-2">
+                  <div className="flex items-center gap-2 font-bold text-brand-900 text-xs">
+                    <Move size={15} className="text-brand-600" />
                     <span>1. Déplacement Libre des Étiquettes</span>
                   </div>
                   <p className="text-xs text-slate-600 leading-relaxed">
@@ -412,16 +453,16 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({ isOpen, onClose })
                 {/* CASE 0: DRAG NODE */}
                 {activeNodeCase === 0 && (
                   <div className="relative w-full h-full flex items-center justify-center">
-                    <div className="absolute top-10 left-24 animate-tutorial-node-drag-card w-48 bg-slate-800 border-2 border-indigo-500 rounded-xl p-3 shadow-xl text-white z-10">
-                      <div className="text-xs font-bold text-indigo-300 flex items-center justify-between">
+                    <div className="absolute top-10 left-24 animate-tutorial-node-drag-card w-48 bg-slate-800 border-2 border-brand-500 rounded-xl p-3 shadow-xl text-white z-10">
+                      <div className="text-xs font-bold text-brand-300 flex items-center justify-between">
                         <span>Poste Alice (101)</span>
-                        <Move size={12} className="text-indigo-400" />
+                        <Move size={12} className="text-brand-400" />
                       </div>
                       <div className="text-[10px] text-slate-400 mt-1">Glisser par l'en-tête</div>
                     </div>
 
                     <div className="absolute animate-tutorial-node-drag-cursor pointer-events-none z-30 text-white drop-shadow-md">
-                      <MousePointer size={22} className="fill-indigo-500 text-white" />
+                      <MousePointer size={22} className="fill-brand-500 text-white" />
                     </div>
                   </div>
                 )}
@@ -431,7 +472,7 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({ isOpen, onClose })
                   <div className="relative w-full h-full flex items-center justify-around px-8">
                     {/* Top Simulated Auto-space button */}
                     <div className="absolute top-3 bg-emerald-600 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg shadow-md flex items-center gap-1.5 border border-emerald-400 animate-pulse z-20">
-                      <Sparkles size={13} />
+                      <Layers size={13} />
                       <span>Espacer Automatiquement</span>
                     </div>
 
@@ -452,16 +493,16 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({ isOpen, onClose })
                 {activeNodeCase === 2 && (
                   <div className="relative w-full h-full flex items-center justify-center">
                     {/* Multi selection box animation */}
-                    <div className="absolute top-8 left-16 border-2 border-dashed border-indigo-400 bg-indigo-500/20 rounded-lg animate-tutorial-marquee-box pointer-events-none z-20" />
+                    <div className="absolute top-8 left-16 border-2 border-dashed border-brand-400 bg-brand-500/20 rounded-lg animate-tutorial-marquee-box pointer-events-none z-20" />
 
                     <div className="flex gap-8 z-10">
-                      <div className="w-36 bg-slate-800 border-2 border-indigo-400 rounded-xl p-2.5 text-white shadow-lg">
-                        <div className="text-xs font-bold text-indigo-300">Poste Alice</div>
+                      <div className="w-36 bg-slate-800 border-2 border-brand-400 rounded-xl p-2.5 text-white shadow-lg">
+                        <div className="text-xs font-bold text-brand-300">Poste Alice</div>
                         <div className="text-[10px] text-slate-300">Encadré / Sélectionné</div>
                       </div>
 
-                      <div className="w-36 bg-slate-800 border-2 border-indigo-400 rounded-xl p-2.5 text-white shadow-lg">
-                        <div className="text-xs font-bold text-indigo-300">Poste Bob</div>
+                      <div className="w-36 bg-slate-800 border-2 border-brand-400 rounded-xl p-2.5 text-white shadow-lg">
+                        <div className="text-xs font-bold text-brand-300">Poste Bob</div>
                         <div className="text-[10px] text-slate-300">Encadré / Sélectionné</div>
                       </div>
                     </div>
@@ -475,12 +516,12 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({ isOpen, onClose })
                   onClick={() => setActiveNodeCase(0)}
                   className={`p-4 rounded-xl border transition-all cursor-pointer ${
                     activeNodeCase === 0 
-                      ? 'bg-indigo-50/90 border-indigo-300 ring-2 ring-indigo-500/30 shadow-sm' 
+                      ? 'bg-brand-50/90 border-brand-300 ring-2 ring-brand-500/30 shadow-sm' 
                       : 'bg-slate-50 border-slate-200 hover:bg-slate-100 opacity-75'
                   }`}
                 >
                   <div className="flex items-center gap-2 mb-1.5">
-                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${activeNodeCase === 0 ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
+                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${activeNodeCase === 0 ? 'bg-brand-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
                       <Move size={15} />
                     </div>
                     <h4 className="font-bold text-slate-900 text-xs">1. Glisser &amp; Déplacer</h4>
@@ -500,7 +541,7 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({ isOpen, onClose })
                 >
                   <div className="flex items-center gap-2 mb-1.5">
                     <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${activeNodeCase === 1 ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
-                      <Sparkles size={15} />
+                      <Layers size={15} />
                     </div>
                     <h4 className="font-bold text-slate-900 text-xs">2. Espacer Automatiquement</h4>
                   </div>
@@ -532,6 +573,144 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({ isOpen, onClose })
           )}
 
           {/* ========================================== */}
+          {/* TAB: PALETTE & PARAMÈTRES                  */}
+          {/* ========================================== */}
+          {activeTab === 'params' && (
+            <div className="space-y-6">
+              <div className="relative h-56 bg-slate-900 rounded-2xl border border-slate-800 p-4 overflow-hidden">
+                {/* Démo 0 : recherche palette */}
+                {activeParamCase === 0 && (
+                  <div className="absolute inset-0 p-5 flex flex-col gap-3">
+                    <div className="flex items-center gap-2 bg-slate-800 border border-slate-600 rounded-xl px-3 py-2 w-64">
+                      <Search size={14} className="text-brand-400" />
+                      <span className="font-mono text-sm text-brand-200 animate-tutorial-search-type overflow-hidden whitespace-nowrap border-r-2 border-brand-400 pr-0.5">
+                        file d&apos;attente
+                      </span>
+                    </div>
+                    <div className="space-y-1.5 w-64">
+                      <div className="bg-brand-600/30 border border-brand-500/50 rounded-lg px-3 py-2 text-xs text-brand-100 font-semibold animate-tutorial-search-hit">
+                        File d&apos;attente
+                      </div>
+                      <div className="bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-400 opacity-60">
+                        Groupe d&apos;appels
+                      </div>
+                    </div>
+                    <div className="absolute bottom-3 left-3 right-3 bg-slate-800/80 backdrop-blur-sm border border-slate-700 rounded-lg px-3 py-1.5 text-[11px] text-slate-300">
+                      <b className="text-brand-300">Recherche :</b> filtrez la palette par nom ou catégorie
+                    </div>
+                  </div>
+                )}
+
+                {/* Démo 1 : cloner + changer type */}
+                {activeParamCase === 1 && (
+                  <div className="absolute inset-0 p-5 flex items-center justify-center gap-6">
+                    <div className="w-44 bg-slate-800 border-2 border-blue-500/70 rounded-xl p-3 text-white shadow-xl animate-tutorial-clone-source">
+                      <div className="text-[10px] text-blue-300 font-bold mb-1">Poste utilisateur</div>
+                      <div className="text-xs font-extrabold">Alice · Ext 201</div>
+                      <div className="mt-2 flex gap-1">
+                        <span className="text-[9px] bg-slate-700 px-1.5 py-0.5 rounded flex items-center gap-1">
+                          <Copy size={9} /> Cloner
+                        </span>
+                        <span className="text-[9px] bg-slate-700 px-1.5 py-0.5 rounded flex items-center gap-1">
+                          <RefreshCw size={9} /> Type
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-brand-400 font-bold text-lg animate-tutorial-clone-arrow">→</div>
+                    <div className="w-44 bg-slate-800 border-2 border-emerald-500/70 rounded-xl p-3 text-white shadow-xl animate-tutorial-clone-copy">
+                      <div className="text-[10px] text-emerald-300 font-bold mb-1">File d&apos;attente</div>
+                      <div className="text-xs font-extrabold">Alice (copie)</div>
+                      <div className="text-[9px] text-amber-300 mt-1">Type changé · champs adaptés</div>
+                    </div>
+                    <div className="absolute bottom-3 left-3 right-3 bg-slate-800/80 backdrop-blur-sm border border-slate-700 rounded-lg px-3 py-1.5 text-[11px] text-slate-300">
+                      <b className="text-emerald-300">Cloner / changer de type :</b> depuis le panneau Paramètres (champs incompatibles remplacés)
+                    </div>
+                  </div>
+                )}
+
+                {/* Démo 2 : densité d'affichage */}
+                {activeParamCase === 2 && (
+                  <div className="absolute inset-0 p-5 flex flex-col items-center justify-center gap-4">
+                    <div className="flex gap-2">
+                      {(['Compact', 'Standard', 'Détaillé'] as const).map((label, i) => (
+                        <div
+                          key={label}
+                          className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${
+                            i === 1
+                              ? 'bg-brand-600 border-brand-400 text-white scale-105 shadow-lg animate-tutorial-density-active'
+                              : 'bg-slate-800 border-slate-600 text-slate-400'
+                          }`}
+                        >
+                          {label}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="w-48 bg-slate-800 border border-brand-500/60 rounded-xl p-3 text-white animate-tutorial-density-card">
+                      <div className="text-[11px] font-extrabold">Support N1</div>
+                      <div className="text-[10px] text-slate-300 mt-1">File 600 · Circulaire</div>
+                      <div className="text-[9px] text-slate-500 mt-0.5">Timeout 30s</div>
+                    </div>
+                    <div className="absolute bottom-3 left-3 right-3 bg-slate-800/80 backdrop-blur-sm border border-slate-700 rounded-lg px-3 py-1.5 text-[11px] text-slate-300">
+                      <b className="text-brand-300">Affichage sur le schéma :</b> Compact / Standard / Détaillé pour éviter la surcharge
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div
+                  onClick={() => setActiveParamCase(0)}
+                  className={`p-4 rounded-xl border transition-all cursor-pointer ${
+                    activeParamCase === 0
+                      ? 'bg-brand-50 border-brand-300 ring-2 ring-brand-500/30 shadow-sm'
+                      : 'bg-slate-50 border-slate-200 hover:bg-slate-100 opacity-80'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <Search size={14} className={activeParamCase === 0 ? 'text-brand-600' : 'text-slate-400'} />
+                    <h4 className="font-bold text-slate-900 text-xs">1. Recherche</h4>
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    Champ en haut de la palette : trouvez vite un type de bloc ou un modèle enregistré.
+                  </p>
+                </div>
+                <div
+                  onClick={() => setActiveParamCase(1)}
+                  className={`p-4 rounded-xl border transition-all cursor-pointer ${
+                    activeParamCase === 1
+                      ? 'bg-emerald-50 border-emerald-300 ring-2 ring-emerald-500/30 shadow-sm'
+                      : 'bg-slate-50 border-slate-200 hover:bg-slate-100 opacity-80'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <Copy size={14} className={activeParamCase === 1 ? 'text-emerald-600' : 'text-slate-400'} />
+                    <h4 className="font-bold text-slate-900 text-xs">2. Cloner &amp; type</h4>
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    Dupliquez un bloc, ou changez son type sans le recréer (attention aux paramètres écrasés).
+                  </p>
+                </div>
+                <div
+                  onClick={() => setActiveParamCase(2)}
+                  className={`p-4 rounded-xl border transition-all cursor-pointer ${
+                    activeParamCase === 2
+                      ? 'bg-cyan-50 border-cyan-300 ring-2 ring-cyan-500/30 shadow-sm'
+                      : 'bg-slate-50 border-slate-200 hover:bg-slate-100 opacity-80'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <Settings size={14} className={activeParamCase === 2 ? 'text-cyan-600' : 'text-slate-400'} />
+                    <h4 className="font-bold text-slate-900 text-xs">3. Densité</h4>
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    Choisissez Compact, Standard ou Détaillé : le canevas reste lisible, le détail reste au survol.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ========================================== */}
           {/* TAB 4: SHORTCUTS & SUMMARY                 */}
           {/* ========================================== */}
           {activeTab === 'shortcuts' && (
@@ -544,15 +723,15 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({ isOpen, onClose })
                 <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl">
                   <span className="text-slate-700 font-medium">Supprimer élément ou liaison</span>
                   <div className="flex gap-1">
-                    <kbd className="px-2 py-1 bg-white border border-slate-300 rounded shadow-3xs font-mono font-bold text-[10px]">Suppr</kbd>
+                    <kbd className="px-2 py-1 bg-white border border-slate-300 rounded shadow-sm font-mono font-bold text-[10px]">Suppr</kbd>
                     <span className="text-slate-400">/</span>
-                    <kbd className="px-2 py-1 bg-white border border-slate-300 rounded shadow-3xs font-mono font-bold text-[10px]">Backspace</kbd>
+                    <kbd className="px-2 py-1 bg-white border border-slate-300 rounded shadow-sm font-mono font-bold text-[10px]">Backspace</kbd>
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between p-3 bg-indigo-50/70 border border-indigo-150 rounded-xl">
-                  <span className="text-indigo-950 font-semibold">Replacer étiquette au centre</span>
-                  <span className="bg-white border border-indigo-200 text-indigo-700 font-bold px-2 py-1 rounded shadow-3xs text-[10px]">
+                <div className="flex items-center justify-between p-3 bg-brand-50 border border-brand-100 rounded-xl">
+                  <span className="text-brand-900 font-semibold">Replacer étiquette au centre</span>
+                  <span className="bg-white border border-brand-200 text-brand-700 font-bold px-2 py-1 rounded shadow-sm text-[10px]">
                     Double-clic sur l'étiquette
                   </span>
                 </div>
@@ -560,24 +739,38 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({ isOpen, onClose })
                 <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl">
                   <span className="text-slate-700 font-medium">Annuler action (Undo)</span>
                   <div className="flex gap-1">
-                    <kbd className="px-2 py-1 bg-white border border-slate-300 rounded shadow-3xs font-mono font-bold text-[10px]">Ctrl</kbd>
+                    <kbd className="px-2 py-1 bg-white border border-slate-300 rounded shadow-sm font-mono font-bold text-[10px]">Ctrl</kbd>
                     <span className="text-slate-400">+</span>
-                    <kbd className="px-2 py-1 bg-white border border-slate-300 rounded shadow-3xs font-mono font-bold text-[10px]">Z</kbd>
+                    <kbd className="px-2 py-1 bg-white border border-slate-300 rounded shadow-sm font-mono font-bold text-[10px]">Z</kbd>
                   </div>
                 </div>
 
                 <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl">
                   <span className="text-slate-700 font-medium">Rétablir action (Redo)</span>
                   <div className="flex gap-1">
-                    <kbd className="px-2 py-1 bg-white border border-slate-300 rounded shadow-3xs font-mono font-bold text-[10px]">Ctrl</kbd>
+                    <kbd className="px-2 py-1 bg-white border border-slate-300 rounded shadow-sm font-mono font-bold text-[10px]">Ctrl</kbd>
                     <span className="text-slate-400">+</span>
-                    <kbd className="px-2 py-1 bg-white border border-slate-300 rounded shadow-3xs font-mono font-bold text-[10px]">Y</kbd>
+                    <kbd className="px-2 py-1 bg-white border border-slate-300 rounded shadow-sm font-mono font-bold text-[10px]">Y</kbd>
                   </div>
                 </div>
 
                 <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl col-span-1 md:col-span-2">
                   <span className="text-slate-700 font-medium">Annuler le tracé d'une liaison en cours</span>
-                  <kbd className="px-2 py-1 bg-white border border-slate-300 rounded shadow-3xs font-mono font-bold text-[10px]">Échap (ESC)</kbd>
+                  <kbd className="px-2 py-1 bg-white border border-slate-300 rounded shadow-sm font-mono font-bold text-[10px]">Échap (ESC)</kbd>
+                </div>
+
+                <div className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-100 rounded-xl">
+                  <span className="text-emerald-900 font-medium">Cloner le bloc sélectionné</span>
+                  <span className="bg-white border border-emerald-200 text-emerald-700 font-bold px-2 py-1 rounded shadow-sm text-[10px]">
+                    Bouton Cloner (panneau)
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between p-3 bg-cyan-50 border border-cyan-100 rounded-xl">
+                  <span className="text-cyan-900 font-medium">Rechercher dans la palette</span>
+                  <span className="bg-white border border-cyan-200 text-cyan-700 font-bold px-2 py-1 rounded shadow-sm text-[10px]">
+                    Champ en haut à gauche
+                  </span>
                 </div>
               </div>
             </div>
@@ -593,7 +786,7 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({ isOpen, onClose })
 
           <button
             onClick={onClose}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-5 py-2 rounded-xl text-xs transition-all shadow-md hover:shadow-lg cursor-pointer"
+            className="bg-brand-600 hover:bg-brand-700 text-white font-bold px-5 py-2 rounded-xl text-xs transition-all shadow-md hover:shadow-lg cursor-pointer"
           >
             J'ai compris, fermer
           </button>
