@@ -559,10 +559,39 @@ export default function App() {
 
   // Global Actions: JSON Exporter
   const handleExportJSON = () => {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(project, null, 2));
+    const slug = (value?: string) =>
+      (value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+
+    const parts = [
+      'teleflux_schema',
+      slug(project.projectName) || 'projet',
+      slug(project.clientName) || null,
+      slug(project.siteName) || null,
+    ].filter(Boolean);
+
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const datetime = [
+      now.getFullYear(),
+      pad(now.getMonth() + 1),
+      pad(now.getDate()),
+      '_',
+      pad(now.getHours()),
+      pad(now.getMinutes()),
+      pad(now.getSeconds()),
+    ].join('');
+
+    const filename = `${parts.join('_')}_${datetime}.json`;
+
+    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(project, null, 2));
     const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute("download", `teleflux_schema_${project.projectName.toLowerCase().replace(/\s+/g, '_')}.json`);
+    downloadAnchor.setAttribute('href', dataStr);
+    downloadAnchor.setAttribute('download', filename);
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.removeChild(downloadAnchor);
