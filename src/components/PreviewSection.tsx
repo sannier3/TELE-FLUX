@@ -805,7 +805,7 @@ function FlowchartReadonlyVisual({ project, showDownload = false }: { project: T
 
                 {/* Left side decorative bar with category primary color */}
                 <path
-                  d="M 1.5 12 A 10.5 10.5 0 0 1 12 1.5 L 12 1.5 L 12 108.5 L 12 108.5 A 10.5 10.5 0 0 1 1.5 98 Z"
+                  d={`M 1 10 A 9 9 0 0 1 5 1 L 5 1 L 5 ${nodeHeight - 1} L 5 ${nodeHeight - 1} A 9 9 0 0 1 1 ${nodeHeight - 10} Z`}
                   fill={scheme.header}
                 />
 

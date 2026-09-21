@@ -12,6 +12,7 @@ import {
   maxBadgesForNode,
   shouldShowBadges,
 } from './nodeDisplay';
+import { getExportIconSvg } from './exportIcons';
 
 export const SCHEMA_NODE_WIDTH = 190;
 
@@ -274,20 +275,25 @@ export function buildDesignerSchemaSvg(opts: SchemaExportOptions): BuiltSchemaSv
       && !!node.properties.voicemailText;
     const hasBody = !!(primary || secondary || showBadges || showMeta || showVm);
     const headerH = density === 'compact' ? (hasBody ? 28 : nh) : 34;
-    const nameLines = wrapText(node.name, density === 'compact' ? 22 : 20);
+    const nameLines = wrapText(node.name, density === 'compact' ? 18 : 17);
     const dash = isJunction ? ' stroke-dasharray="4 3"' : '';
+    const iconSize = density === 'compact' ? 12 : 14;
+    const iconX = nx + 10;
+    const iconY = ny + Math.max(6, (Math.min(headerH, nh) - iconSize) / 2);
+    const textX = nx + 10 + iconSize + 6;
 
     body += `
       <g>
         <rect x="${nx}" y="${ny}" width="${SCHEMA_NODE_WIDTH}" height="${nh}" rx="12" fill="${scheme.fill}" stroke="${scheme.stroke}" stroke-width="1.5"${dash}/>
-        <path d="M ${nx + 1.2} ${ny + 12} A 10.8 10.8 0 0 1 ${nx + 12} ${ny + 1.2} L ${nx + 12} ${ny + headerH} L ${nx + 1.2} ${ny + headerH} Z" fill="${scheme.header}" opacity="0.9"/>
+        <path d="M ${nx + 1} ${ny + 10} A 9 9 0 0 1 ${nx + 5} ${ny + 1} L ${nx + 5} ${ny + headerH} L ${nx + 1} ${ny + headerH} Z" fill="${scheme.header}" opacity="0.95"/>
         <rect x="${nx}" y="${ny}" width="${SCHEMA_NODE_WIDTH}" height="${headerH}" rx="12" fill="rgba(255,255,255,0.35)"/>
         ${hasBody ? `<line x1="${nx}" y1="${ny + headerH}" x2="${nx + SCHEMA_NODE_WIDTH}" y2="${ny + headerH}" stroke="rgba(255,255,255,0.35)" stroke-width="1"/>` : ''}
+        ${getExportIconSvg(meta.iconName, iconX, iconY, iconSize, scheme.header)}
     `;
 
     let ty = ny + (density === 'compact' ? 17 : 20);
     nameLines.slice(0, density === 'compact' ? 2 : 3).forEach((line) => {
-      body += `<text x="${nx + 14}" y="${ty}" fill="#0f172a" font-size="11" font-weight="800" font-family="Outfit, system-ui, sans-serif">${esc(line)}</text>`;
+      body += `<text x="${textX}" y="${ty}" fill="#0f172a" font-size="11" font-weight="800" font-family="Outfit, system-ui, sans-serif">${esc(line)}</text>`;
       ty += 13;
     });
 
